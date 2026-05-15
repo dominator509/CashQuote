@@ -8,10 +8,18 @@
     "build": "tsc -b"
   },
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "express": "^4.18.2",
-    "shared": "*"
+    "express-async-errors": "^3.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "shared": "*",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21"
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/supertest": "^7.2.0",
+    "supertest": "^7.2.2"
   }
 }
