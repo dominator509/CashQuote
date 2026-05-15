@@ -10,10 +10,12 @@ export default tseslint.config(
       'client/dist/**/*',
       'server/dist/**/*',
       'packages/shared/dist/**/*',
+      'packages/db/dist/**/*',
       'node_modules/**/*',
       'client/node_modules/**/*',
       'server/node_modules/**/*',
-      'packages/shared/node_modules/**/*'
+      'packages/shared/node_modules/**/*',
+      'packages/db/node_modules/**/*'
     ]
   },
   {
