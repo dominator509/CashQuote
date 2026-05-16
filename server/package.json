@@ -12,6 +12,7 @@
     "express": "^4.18.2",
     "express-async-errors": "^3.1.1",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^6.38.0",
     "shared": "*",
     "zod": "^4.4.3"
   },
