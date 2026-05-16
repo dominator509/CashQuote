@@ -181,3 +181,13 @@ export const deleteQuote = async (req: Request, res: Response) => {
 
   res.status(204).send();
 };
+
+import { convertQuoteToInvoice as convertService } from '../services/billing/conversion.service';
+
+export const convertQuote = async (req: Request, res: Response) => {
+  const businessId = req.business!.id;
+  const { id } = req.params;
+
+  const invoice = await convertService(id, businessId);
+  res.status(201).json(invoice);
+};

@@ -10,6 +10,7 @@ import clientRoutes from './routes/client.routes';
 import quoteRoutes from './routes/quote.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import aiRoutes from './routes/ai.routes';
+import radarRoutes from './routes/radar.routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ apiRouter.use('/clients', clientRoutes);
 apiRouter.use('/quotes', quoteRoutes);
 apiRouter.use('/invoices', invoiceRoutes);
 apiRouter.use('/ai', aiRoutes);
+apiRouter.use('/radar', radarRoutes);
 
 apiRouter.get('/test-protected', (req, res) => {
   res.json({
