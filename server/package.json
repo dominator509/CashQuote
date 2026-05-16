@@ -5,7 +5,8 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "dev": "ts-node src/index.ts",
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "start:prod": "sh scripts/start-prod.sh"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
