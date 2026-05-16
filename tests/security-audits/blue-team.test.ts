@@ -1,13 +1,14 @@
 import request from 'supertest';
 import app from '../../server/src/index';
 import { prisma } from 'db';
+import { v4 as uuidv4 } from 'uuid';
 
 async function runTests() {
   console.log('Running Blue Team Tenant Isolation Tests...');
 
   // Create Business A and Auth
   const bizA = await prisma.business.create({ data: { name: 'Business A' } });
-  await prisma.user.create({ data: { email: 'userA@test.com' } });
+  await prisma.user.create({ data: { email: `userA-${uuidv4()}@test.com` } });
   const authResA = await request(app).post('/api/auth/demo-login').send();
   const tokenA = authResA.headers['set-cookie'][0];
 
@@ -32,12 +33,6 @@ async function runTests() {
   if (res.status !== 404) {
     throw new Error(`Expected 404 Not Found due to businessId scoping, got ${res.status}`);
   }
-
-  // Attempt to access with completely invalid business ID header
-  const _resInvalidHeader = await request(app)
-    .get(`/api/clients/${clientB.id}`)
-    .set('Cookie', tokenA)
-    .set('x-business-id', bizB.id); // Valid header for B, but if middleware enforces ownership this should ideally 403. Our MVP middleware currently just checks if businessId exists, so we must rely on the controller scoping `businessId: bizA.id` which would prevent seeing it if the middleware was robust.
 
   console.log('Blue Team tests passed! Multi-tenant scoping blocks cross-tenant reads when scoped correctly.');
   process.exit(0);
