@@ -1,33 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
-import { z } from 'zod';
 import { calculateLineItemsSubtotal, calculateTotals } from '../services/billing/math.service';
-
-const lineItemSchema = z.object({
-  id: z.string().uuid().optional(),
-  description: z.string().min(1),
-  quantity: z.number().int().min(1),
-  price: z.number().int().min(0),
-  category: z.string().optional().nullable(),
-});
-
-const createInvoiceSchema = z.object({
-  clientId: z.string().uuid(),
-  status: z.enum(['unpaid', 'paid', 'void']).optional(),
-  taxRatePercent: z.number().min(0).max(100).optional().default(0),
-  discountAmount: z.number().int().min(0).optional().default(0),
-  dueDate: z.string().datetime().optional().nullable(),
-  lineItems: z.array(lineItemSchema).optional().default([]),
-});
-
-const updateInvoiceSchema = z.object({
-  status: z.enum(['unpaid', 'paid', 'void']).optional(),
-  taxRatePercent: z.number().min(0).max(100).optional(),
-  discountAmount: z.number().int().min(0).optional(),
-  dueDate: z.string().datetime().optional().nullable(),
-  lineItems: z.array(lineItemSchema).optional(),
-});
+import { createInvoiceSchema, updateInvoiceSchema } from 'shared';
 
 export const getInvoices = async (req: Request, res: Response) => {
   const businessId = req.business!.id;

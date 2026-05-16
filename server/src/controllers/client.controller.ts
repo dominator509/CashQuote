@@ -1,16 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
-import { z } from 'zod';
-
-const createClientSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email().optional().nullable(),
-  billingAddress: z.string().optional().nullable(),
-  tags: z.array(z.string()).optional(),
-});
-
-const updateClientSchema = createClientSchema.partial();
+import { createClientSchema, updateClientSchema } from 'shared';
 
 export const getClients = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
