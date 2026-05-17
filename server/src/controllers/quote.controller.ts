@@ -114,11 +114,16 @@ export const updateQuote = async (req: Request, res: Response) => {
 
     // 2. Recalculate Totals
     const subtotal = calculateLineItemsSubtotal(currentLineItems);
-
-    // We need the effective tax rate. Since tax isn't stored as a rate, we derive it from the input or assume 0 for simplicity if not provided.
-    // In a real app, you might store the taxRate applied on the Quote model. For MVP we use provided rate or 0.
-    const taxRatePercent = data.taxRatePercent ?? 0;
     const discountAmount = data.discountAmount ?? existingQuote.discount;
+
+    // Derive effective tax rate if not provided:
+    // oldTax = round((oldSubtotal - oldDiscount) * oldRate / 100)
+    // oldRate ≈ (oldTax * 100) / (oldSubtotal - oldDiscount)
+    let taxRatePercent = data.taxRatePercent;
+    if (taxRatePercent === undefined) {
+      const oldTaxable = existingQuote.subtotal - existingQuote.discount;
+      taxRatePercent = oldTaxable > 0 ? (existingQuote.tax * 100) / oldTaxable : 0;
+    }
 
     const totals = calculateTotals(subtotal, taxRatePercent, discountAmount);
 

@@ -15,7 +15,18 @@ export const convertQuoteToInvoice = async (quoteId: string, businessId: string)
     throw new AppError('Only accepted quotes can be converted into invoices', 400);
   }
 
-  // Check if it has already been converted (we will assume an invoice with the same totals and client created recently is a match, or we could add an invoiceId to Quote in V2. For now, we just create the invoice).
+  // Idempotency check: Ensure we haven't already converted this quote
+  const existingLog = await prisma.activityLog.findFirst({
+    where: {
+      businessId,
+      entityId: quote.id,
+      action: 'convert_quote_to_invoice'
+    }
+  });
+
+  if (existingLog) {
+    throw new AppError('Quote has already been converted to an invoice', 409); // Conflict
+  }
 
   return prisma.$transaction(async (tx) => {
     // Create the invoice matching the quote totals

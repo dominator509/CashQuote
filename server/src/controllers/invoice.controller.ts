@@ -114,8 +114,13 @@ export const updateInvoice = async (req: Request, res: Response) => {
 
     // 2. Recalculate Totals
     const subtotal = calculateLineItemsSubtotal(currentLineItems);
-    const taxRatePercent = data.taxRatePercent ?? 0;
     const discountAmount = data.discountAmount ?? existingInvoice.discount;
+
+    let taxRatePercent = data.taxRatePercent;
+    if (taxRatePercent === undefined) {
+      const oldTaxable = existingInvoice.subtotal - existingInvoice.discount;
+      taxRatePercent = oldTaxable > 0 ? (existingInvoice.tax * 100) / oldTaxable : 0;
+    }
 
     const totals = calculateTotals(subtotal, taxRatePercent, discountAmount);
 
