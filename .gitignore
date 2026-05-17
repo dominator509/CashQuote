@@ -1,2 +1,15 @@
 node_modules
 .env
+dist
+client/dist
+server/dist
+packages/shared/dist
+packages/db/dist
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+npm-audit.txt
+npm-audit-v2.txt
+sbom-v2.json
+tests/security-audits/npm-audit.txt
+tests/security-audits/npm-audit-v2.txt
+tests/security-audits/sbom-v2.json
