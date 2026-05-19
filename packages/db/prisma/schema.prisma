@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      String   @default("owner")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients      Client[]
+  quotes       Quote[]
+  invoices     Invoice[]
+  reminders    Reminder[]
+  aiRequests   AiRequest[]
+  activityLogs ActivityLog[]
+}
+
+model Client {
+  id             String   @id @default(uuid())
+  businessId     String
+  name           String
+  email          String?
+  billingAddress String?
+  tags           String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@index([businessId])
+}
+
+model Quote {
+  id         String   @id @default(uuid())
+  businessId String
+  clientId   String
+  status     String   @default("draft") // draft, sent, accepted, rejected
+  subtotal   Int      @default(0) // in cents
+  tax        Int      @default(0)
+  discount   Int      @default(0)
+  total      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business  Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lineItems QuoteLineItem[]
+
+  @@index([businessId])
+}
+
+model QuoteLineItem {
+  id          String   @id @default(uuid())
+  quoteId     String
+  businessId  String
+  description String
+  quantity    Int      @default(1)
+  price       Int      @default(0) // in cents
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([quoteId])
+}
+
+model Invoice {
+  id         String    @id @default(uuid())
+  businessId String
+  clientId   String
+  status     String    @default("unpaid") // unpaid, paid, void
+  subtotal   Int       @default(0) // in cents
+  tax        Int       @default(0)
+  discount   Int       @default(0)
+  total      Int       @default(0)
+  dueDate    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business  Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  client    Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  @@index([businessId])
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  businessId  String
+  description String
+  quantity    Int      @default(1)
+  price       Int      @default(0) // in cents
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([invoiceId])
+}
+
+model Payment {
+  id         String   @id @default(uuid())
+  invoiceId  String
+  businessId String
+  amount     Int // in cents
+  method     String
+  paidAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([invoiceId])
+}
+
+model Reminder {
+  id          String   @id @default(uuid())
+  businessId  String
+  entityId    String // ID of Quote or Invoice
+  entityType  String // "quote" or "invoice"
+  status      String   @default("pending") // pending, sent, resolved
+  scheduledAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model AiRequest {
+  id         String   @id @default(uuid())
+  businessId String
+  prompt     String
+  response   String?
+  status     String   @default("pending") // pending, success, failed
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  businessId String
+  userId     String?
+  action     String
+  entityId   String?
+  entityType String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}

@@ -1,9 +1,44 @@
 {
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo Error: no test specified"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dominator509/CashQuote.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/dotenv": "^6.1.1",
     "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
     "@types/supertest": "^7.2.0",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9.0.0",
     "jest": "^30.4.2",
+    "prisma": "^5.22.0",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.9"
+    "ts-jest": "^29.4.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "uuid": "^14.0.0"
+  },
+  "workspaces": [
+    "client",
+    "server",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@prisma/client": "^5.0.0",
+    "db": "*",
+    "dotenv": "^17.4.2"
   }
 }
