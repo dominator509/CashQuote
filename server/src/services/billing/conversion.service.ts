@@ -28,7 +28,7 @@ export const convertQuoteToInvoice = async (quoteId: string, businessId: string)
     throw new AppError('Quote has already been converted to an invoice', 409); // Conflict
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     // Create the invoice matching the quote totals
     const invoice = await tx.invoice.create({
       data: {
@@ -40,7 +40,7 @@ export const convertQuoteToInvoice = async (quoteId: string, businessId: string)
         discount: quote.discount,
         total: quote.total,
         lineItems: {
-          create: quote.lineItems.map(item => ({
+          create: quote.lineItems.map((item: any) => ({
             businessId,
             description: item.description,
             quantity: item.quantity,
