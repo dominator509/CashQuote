@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { z } from 'zod';
-import { MockAiAdapter } from '../services/ai/mock.adapter';
-import { OpenAiAdapter } from '../services/ai/openai.adapter';
+import { generateLineItemsWithFallback } from '../services/ai/generation.service';
+import { logActivity } from '../services/activity/activity.service';
 
 const generateSchema = z.object({
   notes: z.string().min(1),
@@ -12,34 +12,31 @@ export const generateLineItems = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const { notes } = generateSchema.parse(req.body);
 
-  // Fallback to mock adapter if API key is not present, adhering to Jules guardrails.
-  const aiService = process.env.OPENAI_API_KEY ? new OpenAiAdapter() : new MockAiAdapter();
+  const result = await generateLineItemsWithFallback(notes);
 
-  try {
-    const items = await aiService.generateLineItems(notes);
+  await prisma.aiRequest.create({
+    data: {
+      businessId,
+      prompt: notes,
+      response: JSON.stringify({
+        items: result.items,
+        provider: result.provider,
+        degraded: result.degraded,
+        error: result.error,
+      }),
+      status: result.degraded ? 'degraded' : 'success',
+    },
+  });
 
-    // Log the successful request telemetry
-    await prisma.aiRequest.create({
-      data: {
-        businessId,
-        prompt: notes,
-        response: JSON.stringify(items),
-        status: 'success',
-      },
+  if (result.degraded) {
+    await logActivity({
+      businessId,
+      userId: req.user?.id,
+      action: 'ai_degraded_fallback',
+      entityType: 'ai_request',
+      details: result.error,
     });
-
-    res.json({ items });
-  } catch (error) {
-    // Log the failed request telemetry
-    await prisma.aiRequest.create({
-      data: {
-        businessId,
-        prompt: notes,
-        response: error instanceof Error ? error.message : 'Unknown error',
-        status: 'failed',
-      },
-    });
-
-    throw error;
   }
+
+  res.json({ items: result.items, provider: result.provider, degraded: result.degraded });
 };

@@ -11,6 +11,7 @@ import quoteRoutes from './routes/quote.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import aiRoutes from './routes/ai.routes';
 import radarRoutes from './routes/radar.routes';
+import reminderRoutes from './routes/reminder.routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -31,6 +32,7 @@ apiRouter.use('/quotes', quoteRoutes);
 apiRouter.use('/invoices', invoiceRoutes);
 apiRouter.use('/ai', aiRoutes);
 apiRouter.use('/radar', radarRoutes);
+apiRouter.use('/reminders', reminderRoutes);
 
 apiRouter.get('/test-protected', (req, res) => {
   res.json({

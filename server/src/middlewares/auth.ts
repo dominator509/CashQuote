@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './error';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-do-not-use-in-prod';
+import { getJwtSecret } from '../config/env';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -23,7 +22,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { userId: string };
     req.user = { id: decoded.userId };
     next();
   } catch {

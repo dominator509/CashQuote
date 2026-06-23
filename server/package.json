@@ -1,15 +1,18 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "start": "ts-node src/index.ts",
     "dev": "ts-node src/index.ts",
     "build": "tsc -b",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "start:prod": "sh scripts/start-prod.sh"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
+    "db": "*",
     "express": "^4.18.2",
     "express-async-errors": "^3.1.1",
     "jsonwebtoken": "^9.0.3",

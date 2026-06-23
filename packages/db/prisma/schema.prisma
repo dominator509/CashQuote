@@ -13,6 +13,8 @@ model User {
   role      String   @default("owner")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  memberships BusinessMember[]
 }
 
 model Business {
@@ -28,6 +30,23 @@ model Business {
   reminders    Reminder[]
   aiRequests   AiRequest[]
   activityLogs ActivityLog[]
+  members      BusinessMember[]
+}
+
+model BusinessMember {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String
+  role       String   @default("member") // owner, member
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+  @@index([userId])
 }
 
 model Client {
@@ -62,8 +81,10 @@ model Quote {
   business  Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   lineItems QuoteLineItem[]
+  sourceInvoices Invoice[] @relation("QuoteSource")
 
   @@index([businessId])
+  @@index([businessId, status])
 }
 
 model QuoteLineItem {
@@ -93,15 +114,18 @@ model Invoice {
   discount   Int       @default(0)
   total      Int       @default(0)
   dueDate    DateTime?
+  sourceQuoteId String?   @unique
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
   business  Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   client    Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sourceQuote Quote?          @relation("QuoteSource", fields: [sourceQuoteId], references: [id], onDelete: SetNull)
   lineItems InvoiceLineItem[]
   payments  Payment[]
 
   @@index([businessId])
+  @@index([businessId, status, dueDate])
 }
 
 model InvoiceLineItem {

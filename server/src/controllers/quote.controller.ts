@@ -4,6 +4,7 @@ import { AppError } from '../middlewares/error';
 import { calculateLineItemsSubtotal, calculateTotals } from '../services/billing/math.service';
 import { createQuoteSchema, updateQuoteSchema } from 'shared';
 import { convertQuoteToInvoice as convertService } from '../services/billing/conversion.service';
+import { logActivity } from '../services/activity/activity.service';
 
 export const getQuotes = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -56,7 +57,7 @@ export const createQuote = async (req: Request, res: Response) => {
       discount: totals.discount,
       total: totals.total,
       lineItems: {
-        create: data.lineItems.map((item: any) => ({
+        create: data.lineItems.map((item) => ({
           businessId,
           description: item.description,
           quantity: item.quantity,
@@ -66,6 +67,14 @@ export const createQuote = async (req: Request, res: Response) => {
       },
     },
     include: { lineItems: true, client: true },
+  });
+
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'quote_create',
+    entityId: quote.id,
+    entityType: 'quote',
   });
 
   res.status(201).json(quote);
@@ -96,7 +105,7 @@ export const updateQuote = async (req: Request, res: Response) => {
       // Insert new ones
       if (data.lineItems.length > 0) {
         await tx.quoteLineItem.createMany({
-          data: data.lineItems.map((item: any) => ({
+          data: data.lineItems.map((item) => ({
             quoteId: id,
             businessId,
             description: item.description,
@@ -143,6 +152,14 @@ export const updateQuote = async (req: Request, res: Response) => {
     return updatedQuote;
   });
 
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'quote_update',
+    entityId: result.id,
+    entityType: 'quote',
+  });
+
   res.json(result);
 };
 
@@ -162,6 +179,14 @@ export const deleteQuote = async (req: Request, res: Response) => {
     where: { id },
   });
 
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'quote_delete',
+    entityId: id,
+    entityType: 'quote',
+  });
+
   res.status(204).send();
 };
 
@@ -170,5 +195,13 @@ export const convertQuote = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const invoice = await convertService(id, businessId);
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'quote_convert',
+    entityId: id,
+    entityType: 'quote',
+    details: `Created invoice ${invoice.id}`,
+  });
   res.status(201).json(invoice);
 };

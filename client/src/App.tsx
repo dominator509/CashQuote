@@ -1,0 +1,353 @@
+import { FormEvent, useMemo, useState } from 'react';
+
+interface Business {
+  id: string;
+  name: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  email?: string | null;
+}
+
+interface LineItem {
+  description: string;
+  quantity: number;
+  price: number;
+  category?: string | null;
+}
+
+interface Quote {
+  id: string;
+  clientId: string;
+  status: string;
+  total: number;
+  lineItems: LineItem[];
+  client?: Client;
+}
+
+interface Invoice {
+  id: string;
+  clientId: string;
+  status: string;
+  total: number;
+  dueDate?: string | null;
+  lineItems: LineItem[];
+  payments?: Payment[];
+  client?: Client;
+}
+
+interface Payment {
+  id: string;
+  amount: number;
+  method: string;
+  paidAt: string;
+}
+
+interface Reminder {
+  id: string;
+  entityType: 'quote' | 'invoice';
+  entityId: string;
+  status: string;
+  scheduledAt: string;
+}
+
+interface Radar {
+  unconvertedQuotes: Quote[];
+  overdueInvoices: Invoice[];
+  totalAtRisk: number;
+}
+
+const dollars = (cents: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+
+export function App() {
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [radar, setRadar] = useState<Radar | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [message, setMessage] = useState('Sign in with demo login to begin.');
+
+  const selectedInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? invoices[0],
+    [invoices, selectedInvoiceId]
+  );
+
+  const request = async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+    if (!business && path !== '/api/auth/demo-login') {
+      throw new Error('Login required');
+    }
+
+    const response = await fetch(path, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(business ? { 'x-business-id': business.id } : {}),
+        ...init.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(body.error ?? 'Request failed');
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  };
+
+  const refresh = async () => {
+    const [nextClients, nextQuotes, nextInvoices, nextReminders, nextRadar] = await Promise.all([
+      request<Client[]>('/api/clients'),
+      request<Quote[]>('/api/quotes'),
+      request<Invoice[]>('/api/invoices'),
+      request<Reminder[]>('/api/reminders'),
+      request<Radar>('/api/radar/insights'),
+    ]);
+
+    setClients(nextClients);
+    setQuotes(nextQuotes);
+    setInvoices(nextInvoices);
+    setReminders(nextReminders);
+    setRadar(nextRadar);
+    setSelectedInvoiceId((current) => current || nextInvoices[0]?.id || '');
+  };
+
+  const login = async () => {
+    const result = await request<{ business: Business }>('/api/auth/demo-login', { method: 'POST' });
+    setBusiness(result.business);
+    setMessage(`Logged into ${result.business.name}.`);
+    setTimeout(() => {
+      refresh().catch((error) => setMessage(error.message));
+    }, 0);
+  };
+
+  const createClient = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await request<Client>('/api/clients', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: String(form.get('name')),
+        email: String(form.get('email') || '') || null,
+      }),
+    });
+    event.currentTarget.reset();
+    setMessage('Client created.');
+    await refresh();
+  };
+
+  const createQuote = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const clientId = String(form.get('clientId'));
+    await request<Quote>('/api/quotes', {
+      method: 'POST',
+      body: JSON.stringify({
+        clientId,
+        status: 'accepted',
+        taxRatePercent: Number(form.get('taxRatePercent') || 0),
+        lineItems: [
+          {
+            description: String(form.get('description')),
+            quantity: Number(form.get('quantity') || 1),
+            price: Math.round(Number(form.get('price') || 0) * 100),
+            category: 'Service',
+          },
+        ],
+      }),
+    });
+    event.currentTarget.reset();
+    setMessage('Accepted quote created.');
+    await refresh();
+  };
+
+  const convertQuote = async (quoteId: string) => {
+    const invoice = await request<Invoice>(`/api/quotes/${quoteId}/convert`, { method: 'POST' });
+    setSelectedInvoiceId(invoice.id);
+    setMessage('Quote converted to invoice.');
+    await refresh();
+  };
+
+  const createPayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedInvoice) return;
+    const form = new FormData(event.currentTarget);
+    await request<Payment>(`/api/invoices/${selectedInvoice.id}/payments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: Math.round(Number(form.get('amount') || 0) * 100),
+        method: String(form.get('method') || 'manual'),
+      }),
+    });
+    event.currentTarget.reset();
+    setMessage('Payment recorded.');
+    await refresh();
+  };
+
+  const createReminder = async (entityType: 'quote' | 'invoice', entityId: string) => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await request<Reminder>('/api/reminders', {
+      method: 'POST',
+      body: JSON.stringify({ entityType, entityId, scheduledAt: tomorrow }),
+    });
+    setMessage('Reminder scheduled.');
+    await refresh();
+  };
+
+  const sendReminder = async (id: string) => {
+    await request<Reminder>(`/api/reminders/${id}/send`, { method: 'POST' });
+    setMessage('Reminder sent with mock mail service.');
+    await refresh();
+  };
+
+  const resolveReminder = async (id: string) => {
+    await request<Reminder>(`/api/reminders/${id}/resolve`, { method: 'POST' });
+    setMessage('Reminder resolved.');
+    await refresh();
+  };
+
+  if (!business) {
+    return (
+      <main className="login-shell">
+        <section className="login-panel">
+          <h1>CashQuote</h1>
+          <p>{message}</p>
+          <button type="button" onClick={login}>Demo Login</button>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div>
+          <h1>CashQuote</h1>
+          <p>{business.name}</p>
+        </div>
+        <button type="button" onClick={() => refresh().catch((error) => setMessage(error.message))}>
+          Refresh
+        </button>
+      </header>
+
+      <p className="status">{message}</p>
+
+      <section className="grid">
+        <form onSubmit={createClient} className="panel">
+          <h2>Clients</h2>
+          <input name="name" placeholder="Client name" required />
+          <input name="email" placeholder="Email" type="email" />
+          <button type="submit">Create Client</button>
+          <ul>
+            {clients.map((client) => (
+              <li key={client.id}>{client.name}</li>
+            ))}
+          </ul>
+        </form>
+
+        <form onSubmit={createQuote} className="panel">
+          <h2>Quote Builder</h2>
+          <select name="clientId" required>
+            <option value="">Select client</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </select>
+          <input name="description" placeholder="Line item" required />
+          <input name="quantity" type="number" min="1" defaultValue="1" />
+          <input name="price" type="number" min="0" step="0.01" placeholder="Price" required />
+          <input name="taxRatePercent" type="number" min="0" max="100" step="0.01" placeholder="Tax %" />
+          <button type="submit">Create Accepted Quote</button>
+        </form>
+
+        <section className="panel">
+          <h2>Quotes</h2>
+          {quotes.map((quote) => (
+            <article key={quote.id} className="row">
+              <span>{quote.client?.name ?? quote.clientId}</span>
+              <strong>{dollars(quote.total)}</strong>
+              <button type="button" onClick={() => convertQuote(quote.id)}>Convert</button>
+              <button type="button" onClick={() => createReminder('quote', quote.id)}>Remind</button>
+            </article>
+          ))}
+        </section>
+
+        <section className="panel">
+          <h2>Invoices</h2>
+          <select value={selectedInvoice?.id ?? ''} onChange={(event) => setSelectedInvoiceId(event.target.value)}>
+            {invoices.map((invoice) => (
+              <option key={invoice.id} value={invoice.id}>
+                {invoice.client?.name ?? invoice.clientId} - {dollars(invoice.total)} - {invoice.status}
+              </option>
+            ))}
+          </select>
+          {selectedInvoice && (
+            <>
+              <form onSubmit={createPayment} className="inline-form">
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="Payment" required />
+                <input name="method" defaultValue="manual" required />
+                <button type="submit">Record</button>
+              </form>
+              <button type="button" onClick={() => createReminder('invoice', selectedInvoice.id)}>Remind</button>
+              <button type="button" onClick={() => window.print()}>Print</button>
+            </>
+          )}
+        </section>
+
+        <section className="panel">
+          <h2>Lost Cash Radar</h2>
+          <p>Total at risk: <strong>{dollars(radar?.totalAtRisk ?? 0)}</strong></p>
+          <p>{radar?.unconvertedQuotes.length ?? 0} unconverted accepted quotes</p>
+          <p>{radar?.overdueInvoices.length ?? 0} overdue unpaid invoices</p>
+        </section>
+
+        <section className="panel">
+          <h2>Reminders</h2>
+          {reminders.map((reminder) => (
+            <article key={reminder.id} className="row">
+              <span>{reminder.entityType} {reminder.status}</span>
+              <button type="button" onClick={() => sendReminder(reminder.id)}>Send</button>
+              <button type="button" onClick={() => resolveReminder(reminder.id)}>Resolve</button>
+            </article>
+          ))}
+        </section>
+      </section>
+
+      {selectedInvoice && (
+        <section className="print-document">
+          <h1>Invoice</h1>
+          <p>{selectedInvoice.client?.name ?? selectedInvoice.clientId}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedInvoice.lineItems.map((item) => (
+                <tr key={`${item.description}-${item.price}`}>
+                  <td>{item.description}</td>
+                  <td>{item.quantity}</td>
+                  <td>{dollars(item.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h2>Total {dollars(selectedInvoice.total)}</h2>
+          <p>Status: {selectedInvoice.status}</p>
+        </section>
+      )}
+    </main>
+  );
+}

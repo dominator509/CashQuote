@@ -14,11 +14,11 @@ export const getLostCashInsights = async (businessId: string) => {
     where: {
       businessId,
       action: 'convert_quote_to_invoice',
-      entityId: { in: acceptedQuotes.map((q: any) => q.id) }
+      entityId: { in: acceptedQuotes.map((quote) => quote.id) }
     }
-  }).then((logs: any) => new Set(logs.map((l: any) => l.entityId)));
+  }).then((logs) => new Set(logs.map((log) => log.entityId)));
 
-  const unconvertedQuotes = acceptedQuotes.filter((q: any) => !convertedLogIds.has(q.id));
+  const unconvertedQuotes = acceptedQuotes.filter((quote) => !convertedLogIds.has(quote.id));
 
   // 2. Find overdue unpaid invoices
   const now = new Date();

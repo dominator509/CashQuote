@@ -4,8 +4,8 @@ import { convertQuoteToInvoice } from '../../server/src/services/billing/convers
 jest.mock('db', () => ({
   prisma: {
     quote: { findFirst: jest.fn() },
-    activityLog: { findFirst: jest.fn(), create: jest.fn() },
-    invoice: { create: jest.fn() },
+    activityLog: { create: jest.fn() },
+    invoice: { create: jest.fn(), findUnique: jest.fn() },
     $transaction: jest.fn(async (cb) => cb(prisma))
   }
 }));
@@ -38,7 +38,7 @@ describe('Phase 3: Exhaustive Path & Branch Coverage', () => {
 
   it('Path 3: Idempotency conflict should throw 409', async () => {
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue({ id: quoteId, status: 'accepted' });
-    (prisma.activityLog.findFirst as jest.Mock).mockResolvedValue({ id: 'log-1' });
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({ id: 'inv-1' });
 
     await expect(convertQuoteToInvoice(quoteId, businessId)).rejects.toMatchObject({
       statusCode: 409,
@@ -60,7 +60,7 @@ describe('Phase 3: Exhaustive Path & Branch Coverage', () => {
     };
 
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue(mockQuote);
-    (prisma.activityLog.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.invoice.create as jest.Mock).mockResolvedValue({ id: 'inv-1' });
     (prisma.activityLog.create as jest.Mock).mockResolvedValue({ id: 'log-2' });
 

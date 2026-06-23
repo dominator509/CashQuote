@@ -3,6 +3,7 @@ import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
 import { calculateLineItemsSubtotal, calculateTotals } from '../services/billing/math.service';
 import { createInvoiceSchema, updateInvoiceSchema } from 'shared';
+import { logActivity } from '../services/activity/activity.service';
 
 export const getInvoices = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -56,7 +57,7 @@ export const createInvoice = async (req: Request, res: Response) => {
       total: totals.total,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       lineItems: {
-        create: data.lineItems.map((item: any) => ({
+        create: data.lineItems.map((item) => ({
           businessId,
           description: item.description,
           quantity: item.quantity,
@@ -66,6 +67,14 @@ export const createInvoice = async (req: Request, res: Response) => {
       },
     },
     include: { lineItems: true, client: true },
+  });
+
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'invoice_create',
+    entityId: invoice.id,
+    entityType: 'invoice',
   });
 
   res.status(201).json(invoice);
@@ -96,7 +105,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
       // Insert new ones
       if (data.lineItems.length > 0) {
         await tx.invoiceLineItem.createMany({
-          data: data.lineItems.map((item: any) => ({
+          data: data.lineItems.map((item) => ({
             invoiceId: id,
             businessId,
             description: item.description,
@@ -141,6 +150,14 @@ export const updateInvoice = async (req: Request, res: Response) => {
     return updatedInvoice;
   });
 
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'invoice_update',
+    entityId: result.id,
+    entityType: 'invoice',
+  });
+
   res.json(result);
 };
 
@@ -158,6 +175,14 @@ export const deleteInvoice = async (req: Request, res: Response) => {
 
   await prisma.invoice.delete({
     where: { id },
+  });
+
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'invoice_delete',
+    entityId: id,
+    entityType: 'invoice',
   });
 
   res.status(204).send();

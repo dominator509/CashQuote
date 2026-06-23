@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateInvoiceSchema = exports.createInvoiceSchema = exports.updateQuoteSchema = exports.createQuoteSchema = exports.lineItemSchema = exports.updateClientSchema = exports.createClientSchema = exports.test = void 0;
+exports.updateReminderStatusSchema = exports.createReminderSchema = exports.createPaymentSchema = exports.updateInvoiceSchema = exports.createInvoiceSchema = exports.updateQuoteSchema = exports.createQuoteSchema = exports.lineItemSchema = exports.updateClientSchema = exports.createClientSchema = exports.test = void 0;
 const zod_1 = require("zod");
 exports.test = 'test';
 exports.createClientSchema = zod_1.z.object({
@@ -44,4 +44,17 @@ exports.updateInvoiceSchema = zod_1.z.object({
     discountAmount: zod_1.z.number().int().min(0).optional(),
     dueDate: zod_1.z.string().datetime().optional().nullable(),
     lineItems: zod_1.z.array(exports.lineItemSchema).optional(),
+});
+exports.createPaymentSchema = zod_1.z.object({
+    amount: zod_1.z.number().int().min(1),
+    method: zod_1.z.string().min(1),
+    paidAt: zod_1.z.string().datetime().optional(),
+});
+exports.createReminderSchema = zod_1.z.object({
+    entityType: zod_1.z.enum(['quote', 'invoice']),
+    entityId: zod_1.z.string().uuid(),
+    scheduledAt: zod_1.z.string().datetime(),
+});
+exports.updateReminderStatusSchema = zod_1.z.object({
+    status: zod_1.z.enum(['pending', 'sent', 'resolved']),
 });

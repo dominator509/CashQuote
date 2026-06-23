@@ -3,19 +3,18 @@ import { IAIService, AIGeneratedLineItem, aiGeneratedLineItemSchema } from './ai
 import { z } from 'zod';
 import { AppError } from '../../middlewares/error';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
-
 const schema = z.object({
   items: z.array(aiGeneratedLineItemSchema)
 });
 
 export class OpenAiAdapter implements IAIService {
   async generateLineItems(notes: string): Promise<AIGeneratedLineItem[]> {
-    if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
       throw new AppError('OpenAI API key is missing', 500);
     }
 
     try {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
 import { createClientSchema, updateClientSchema } from 'shared';
+import { logActivity } from '../services/activity/activity.service';
 
 export const getClients = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -39,6 +40,14 @@ export const createClient = async (req: Request, res: Response) => {
     },
   });
 
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'client_create',
+    entityId: client.id,
+    entityType: 'client',
+  });
+
   res.status(201).json(client);
 };
 
@@ -63,6 +72,14 @@ export const updateClient = async (req: Request, res: Response) => {
     },
   });
 
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'client_update',
+    entityId: updatedClient.id,
+    entityType: 'client',
+  });
+
   res.json(updatedClient);
 };
 
@@ -80,6 +97,14 @@ export const deleteClient = async (req: Request, res: Response) => {
 
   await prisma.client.delete({
     where: { id },
+  });
+
+  await logActivity({
+    businessId,
+    userId: req.user?.id,
+    action: 'client_delete',
+    entityId: id,
+    entityType: 'client',
   });
 
   res.status(204).send();

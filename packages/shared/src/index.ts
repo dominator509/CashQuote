@@ -51,8 +51,26 @@ export const updateInvoiceSchema = z.object({
   lineItems: z.array(lineItemSchema).optional(),
 });
 
+export const createPaymentSchema = z.object({
+  amount: z.number().int().min(1),
+  method: z.string().min(1),
+  paidAt: z.string().datetime().optional(),
+});
+
+export const createReminderSchema = z.object({
+  entityType: z.enum(['quote', 'invoice']),
+  entityId: z.string().uuid(),
+  scheduledAt: z.string().datetime(),
+});
+
+export const updateReminderStatusSchema = z.object({
+  status: z.enum(['pending', 'sent', 'resolved']),
+});
+
 // Infer types
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type LineItemInput = z.infer<typeof lineItemSchema>;
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type CreateReminderInput = z.infer<typeof createReminderSchema>;

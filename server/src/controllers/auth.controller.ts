@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-do-not-use-in-prod';
+import { getJwtSecret } from '../config/env';
+import { logActivity } from '../services/activity/activity.service';
 
 export const demoLogin = async (req: Request, res: Response) => {
   let user = await prisma.user.findFirst({ where: { email: 'demo@quotecash.com' } });
@@ -26,7 +26,30 @@ export const demoLogin = async (req: Request, res: Response) => {
     });
   }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+  await prisma.businessMember.upsert({
+    where: {
+      userId_businessId: {
+        userId: user.id,
+        businessId: business.id,
+      },
+    },
+    update: { role: 'owner' },
+    create: {
+      userId: user.id,
+      businessId: business.id,
+      role: 'owner',
+    },
+  });
+
+  await logActivity({
+    businessId: business.id,
+    userId: user.id,
+    action: 'auth_demo_login',
+    entityId: user.id,
+    entityType: 'user',
+  });
+
+  const token = jwt.sign({ userId: user.id }, getJwtSecret(), { expiresIn: '7d' });
 
   res.cookie('token', token, {
     httpOnly: true,

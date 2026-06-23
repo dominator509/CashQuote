@@ -1,5 +1,6 @@
 #!/bin/sh
+cd "$(dirname "$0")/../.."
 echo "Deploying database migrations..."
-npx prisma migrate deploy --schema=../packages/db/prisma/schema.prisma
+npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
 echo "Starting Node.js server..."
-node dist/index.js
+node server/dist/index.js

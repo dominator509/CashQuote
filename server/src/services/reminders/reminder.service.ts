@@ -1,0 +1,119 @@
+import { prisma } from 'db';
+import { AppError } from '../../middlewares/error';
+import { MockMailService } from '../mail/mock-mail.service';
+
+type EntityType = 'quote' | 'invoice';
+
+const ensureEntityExists = async (entityType: EntityType, entityId: string, businessId: string) => {
+  if (entityType === 'quote') {
+    const quote = await prisma.quote.findFirst({ where: { id: entityId, businessId } });
+    if (!quote) throw new AppError('Quote not found', 404);
+    return;
+  }
+
+  const invoice = await prisma.invoice.findFirst({ where: { id: entityId, businessId } });
+  if (!invoice) throw new AppError('Invoice not found', 404);
+};
+
+export const listReminders = async (businessId: string) => {
+  return prisma.reminder.findMany({
+    where: { businessId },
+    orderBy: { scheduledAt: 'asc' },
+  });
+};
+
+export const createReminder = async (
+  businessId: string,
+  userId: string | undefined,
+  input: { entityType: EntityType; entityId: string; scheduledAt: string }
+) => {
+  await ensureEntityExists(input.entityType, input.entityId, businessId);
+
+  const reminder = await prisma.reminder.create({
+    data: {
+      businessId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      scheduledAt: new Date(input.scheduledAt),
+    },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      businessId,
+      userId,
+      action: 'reminder_create',
+      entityId: reminder.id,
+      entityType: 'reminder',
+      details: `Created reminder for ${input.entityType} ${input.entityId}`,
+    },
+  });
+
+  return reminder;
+};
+
+export const sendReminder = async (businessId: string, userId: string | undefined, id: string) => {
+  const reminder = await prisma.reminder.findFirst({
+    where: { id, businessId },
+  });
+
+  if (!reminder) {
+    throw new AppError('Reminder not found', 404);
+  }
+
+  const entityType = reminder.entityType === 'quote' ? 'quote' : 'invoice';
+  const mailService = new MockMailService();
+  await mailService.sendReminder({
+    businessId,
+    entityId: reminder.entityId,
+    entityType,
+  });
+
+  const updated = await prisma.reminder.update({
+    where: { id },
+    data: { status: 'sent' },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      businessId,
+      userId,
+      action: 'reminder_send',
+      entityId: id,
+      entityType: 'reminder',
+    },
+  });
+
+  return updated;
+};
+
+export const resolveReminder = async (
+  businessId: string,
+  userId: string | undefined,
+  id: string
+) => {
+  const reminder = await prisma.reminder.findFirst({
+    where: { id, businessId },
+  });
+
+  if (!reminder) {
+    throw new AppError('Reminder not found', 404);
+  }
+
+  const updated = await prisma.reminder.update({
+    where: { id },
+    data: { status: 'resolved' },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      businessId,
+      userId,
+      action: 'reminder_resolve',
+      entityId: id,
+      entityType: 'reminder',
+    },
+  });
+
+  return updated;
+};

@@ -1,68 +1,79 @@
 import { prisma } from 'db';
 import { AppError } from '../../middlewares/error';
 
+const isDuplicateConstraintError = (error: unknown): error is { code: string } => {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+};
+
 export const convertQuoteToInvoice = async (quoteId: string, businessId: string) => {
-  const quote = await prisma.quote.findFirst({
-    where: { id: quoteId, businessId },
-    include: { lineItems: true },
-  });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const quote = await tx.quote.findFirst({
+        where: { id: quoteId, businessId },
+        include: { lineItems: true },
+      });
 
-  if (!quote) {
-    throw new AppError('Quote not found', 404);
-  }
+      if (!quote) {
+        throw new AppError('Quote not found', 404);
+      }
 
-  if (quote.status !== 'accepted') {
-    throw new AppError('Only accepted quotes can be converted into invoices', 400);
-  }
+      if (quote.status !== 'accepted') {
+        throw new AppError('Only accepted quotes can be converted into invoices', 400);
+      }
 
-  // Idempotency check: Ensure we haven't already converted this quote
-  const existingLog = await prisma.activityLog.findFirst({
-    where: {
-      businessId,
-      entityId: quote.id,
-      action: 'convert_quote_to_invoice'
-    }
-  });
+      const existingInvoice = await tx.invoice.findUnique({
+        where: { sourceQuoteId: quote.id },
+        include: { lineItems: true, client: true },
+      });
 
-  if (existingLog) {
-    throw new AppError('Quote has already been converted to an invoice', 409); // Conflict
-  }
+      if (existingInvoice) {
+        throw new AppError('Quote has already been converted to an invoice', 409);
+      }
 
-  return prisma.$transaction(async (tx: any) => {
-    // Create the invoice matching the quote totals
-    const invoice = await tx.invoice.create({
-      data: {
-        businessId,
-        clientId: quote.clientId,
-        status: 'unpaid',
-        subtotal: quote.subtotal,
-        tax: quote.tax,
-        discount: quote.discount,
-        total: quote.total,
-        lineItems: {
-          create: quote.lineItems.map((item: any) => ({
-            businessId,
-            description: item.description,
-            quantity: item.quantity,
-            price: item.price,
-            category: item.category,
-          })),
+      const invoice = await tx.invoice.create({
+        data: {
+          businessId,
+          clientId: quote.clientId,
+          sourceQuoteId: quote.id,
+          status: 'unpaid',
+          subtotal: quote.subtotal,
+          tax: quote.tax,
+          discount: quote.discount,
+          total: quote.total,
+          lineItems: {
+            create: quote.lineItems.map((item) => ({
+              businessId,
+              description: item.description,
+              quantity: item.quantity,
+              price: item.price,
+              category: item.category,
+            })),
+          },
         },
-      },
-      include: { lineItems: true, client: true },
-    });
+        include: { lineItems: true, client: true },
+      });
 
-    // Log the conversion
-    await tx.activityLog.create({
-      data: {
-        businessId,
-        action: 'convert_quote_to_invoice',
-        entityId: quote.id,
-        entityType: 'quote',
-        details: `Converted quote ${quote.id} to invoice ${invoice.id}`,
-      },
-    });
+      await tx.activityLog.create({
+        data: {
+          businessId,
+          action: 'convert_quote_to_invoice',
+          entityId: quote.id,
+          entityType: 'quote',
+          details: `Converted quote ${quote.id} to invoice ${invoice.id}`,
+        },
+      });
 
-    return invoice;
-  });
+      return invoice;
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    if (isDuplicateConstraintError(error)) {
+      throw new AppError('Quote has already been converted to an invoice', 409);
+    }
+
+    throw error;
+  }
 };

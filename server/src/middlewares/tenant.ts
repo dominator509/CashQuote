@@ -24,16 +24,24 @@ export const requireBusinessId = async (
     throw new AppError('Bad Request: Missing x-business-id header', 400);
   }
 
-  // In a real multi-tenant app, we would verify that req.user.id has access to businessId.
-  // For Phase 3 demo/MVP logic, we just verify the business exists to enforce the guardrail.
-  const business = await prisma.business.findUnique({
-    where: { id: businessId },
-  });
-
-  if (!business) {
-    throw new AppError('Forbidden: Invalid business ID', 403);
+  if (!req.user?.id) {
+    throw new AppError('Unauthorized: Missing user context', 401);
   }
 
-  req.business = { id: business.id };
+  const membership = await prisma.businessMember.findUnique({
+    where: {
+      userId_businessId: {
+        userId: req.user.id,
+        businessId,
+      },
+    },
+    include: { business: true },
+  });
+
+  if (!membership) {
+    throw new AppError('Forbidden: User does not have access to this business', 403);
+  }
+
+  req.business = { id: membership.business.id };
   next();
 };

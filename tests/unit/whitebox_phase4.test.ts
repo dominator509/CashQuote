@@ -4,8 +4,8 @@ import { convertQuoteToInvoice } from '../../server/src/services/billing/convers
 jest.mock('db', () => ({
   prisma: {
     quote: { findFirst: jest.fn() },
-    activityLog: { findFirst: jest.fn(), create: jest.fn() },
-    invoice: { create: jest.fn() },
+    activityLog: { create: jest.fn() },
+    invoice: { create: jest.fn(), findUnique: jest.fn() },
     $transaction: jest.fn(async (cb) => cb(prisma))
   }
 }));
@@ -32,7 +32,7 @@ describe('Phase 4: Internal Security & Exception Handling Validation', () => {
     };
 
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue(mockQuote);
-    (prisma.activityLog.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
 
     // Force an internal panic on creation
     const dbError = new Error('Database connection reset by peer');
