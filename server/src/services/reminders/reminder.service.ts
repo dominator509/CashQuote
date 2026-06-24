@@ -61,6 +61,14 @@ export const sendReminder = async (businessId: string, userId: string | undefine
     throw new AppError('Reminder not found', 404);
   }
 
+  if (reminder.status === 'sent') {
+    throw new AppError('Reminder has already been sent', 409);
+  }
+
+  if (reminder.status === 'resolved') {
+    throw new AppError('Reminder has already been resolved', 409);
+  }
+
   const entityType = reminder.entityType === 'quote' ? 'quote' : 'invoice';
   const mailService = new MockMailService();
   await mailService.sendReminder({
@@ -98,6 +106,10 @@ export const resolveReminder = async (
 
   if (!reminder) {
     throw new AppError('Reminder not found', 404);
+  }
+
+  if (reminder.status === 'resolved') {
+    throw new AppError('Reminder is already resolved', 409);
   }
 
   const updated = await prisma.reminder.update({

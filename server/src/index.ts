@@ -47,8 +47,10 @@ app.use('/api', apiRouter);
 // Global Error Handler
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+  });
+}
 
 export default app;

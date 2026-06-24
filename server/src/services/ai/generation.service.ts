@@ -11,13 +11,15 @@ export interface AiGenerationResult {
 
 export const generateLineItemsWithFallback = async (notes: string): Promise<AiGenerationResult> => {
   const mockAdapter = new MockAiAdapter();
+  const withMockDegraded = async (errorMessage: string): Promise<AiGenerationResult> => ({
+    items: await mockAdapter.generateLineItems(notes),
+    provider: 'mock',
+    degraded: true,
+    error: errorMessage,
+  });
 
   if (!process.env.OPENAI_API_KEY) {
-    return {
-      items: await mockAdapter.generateLineItems(notes),
-      provider: 'mock',
-      degraded: false,
-    };
+    return withMockDegraded('OpenAI API key is missing');
   }
 
   try {
@@ -27,11 +29,6 @@ export const generateLineItemsWithFallback = async (notes: string): Promise<AiGe
       degraded: false,
     };
   } catch (error) {
-    return {
-      items: await mockAdapter.generateLineItems(notes),
-      provider: 'mock',
-      degraded: true,
-      error: error instanceof Error ? error.message : 'Unknown AI provider error',
-    };
+    return withMockDegraded(error instanceof Error ? error.message : 'Unknown AI provider error');
   }
 };
