@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from 'db';
 import { AppError } from './error';
 
+export type BusinessRole = 'owner' | 'member';
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
@@ -42,6 +44,19 @@ export const requireBusinessId = async (
     throw new AppError('Forbidden: User does not have access to this business', 403);
   }
 
+  const role = membership.role === 'owner' ? 'owner' : 'member';
+  const user = req.user as { id: string; role?: BusinessRole };
+  user.role = role;
+  req.user = user;
   req.business = { id: membership.business.id };
+  next();
+};
+
+export const requireBusinessOwner = (req: Request, res: Response, next: NextFunction): void => {
+  const user = req.user as { id: string; role?: BusinessRole } | undefined;
+  if (user?.role !== 'owner') {
+    throw new AppError('Forbidden: This action requires business ownership', 403);
+  }
+
   next();
 };

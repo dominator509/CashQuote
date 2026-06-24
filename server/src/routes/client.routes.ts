@@ -6,13 +6,14 @@ import {
   updateClient,
   deleteClient,
 } from '../controllers/client.controller';
+import { requireBusinessOwner } from '../middlewares/tenant';
 
 const router = Router();
 
 router.get('/', getClients);
 router.get('/:id', getClientById);
-router.post('/', createClient);
-router.put('/:id', updateClient);
-router.delete('/:id', deleteClient);
+router.post('/', requireBusinessOwner, createClient);
+router.put('/:id', requireBusinessOwner, updateClient);
+router.delete('/:id', requireBusinessOwner, deleteClient);
 
 export default router;

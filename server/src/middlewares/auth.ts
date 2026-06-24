@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './error';
 import { getJwtSecret } from '../config/env';
+import type { BusinessRole } from './tenant';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -9,6 +10,7 @@ declare global {
     interface Request {
       user?: {
         id: string;
+        role?: BusinessRole;
       };
     }
   }

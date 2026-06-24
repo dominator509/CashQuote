@@ -1,5 +1,5 @@
 import { getJwtSecret } from '../../server/src/config/env';
-import { requireBusinessId } from '../../server/src/middlewares/tenant';
+import { requireBusinessId, requireBusinessOwner } from '../../server/src/middlewares/tenant';
 import { generateLineItemsWithFallback } from '../../server/src/services/ai/generation.service';
 import { OpenAiAdapter } from '../../server/src/services/ai/openai.adapter';
 import { createInvoicePayment } from '../../server/src/services/billing/payment.service';
@@ -51,6 +51,7 @@ describe('Production MVP security and workflow seams', () => {
 
   it('accepts tenant context only when user is a business member', async () => {
     (prisma.businessMember.findUnique as jest.Mock).mockResolvedValue({
+      role: 'owner',
       business: { id: 'biz-1' },
     });
     const req = {
@@ -62,7 +63,48 @@ describe('Production MVP security and workflow seams', () => {
     await requireBusinessId(req as never, {} as never, next);
 
     expect(next).toHaveBeenCalled();
-    expect((req as { business?: { id: string } }).business?.id).toBe('biz-1');
+    expect((req as { business?: { id: string }; user?: { role?: string } }).business?.id).toBe('biz-1');
+    expect((req as { business?: { id: string }; user?: { role?: string } }).user?.role).toBe('owner');
+  });
+
+  it('assigns explicit member role from business membership', async () => {
+    (prisma.businessMember.findUnique as jest.Mock).mockResolvedValue({
+      role: 'member',
+      business: { id: 'biz-1' },
+    });
+    const req = {
+      headers: { 'x-business-id': 'biz-1' },
+      user: { id: 'user-1' },
+    };
+    const next = jest.fn();
+
+    await requireBusinessId(req as never, {} as never, next);
+
+    expect((req as { user?: { role?: string } }).user?.role).toBe('member');
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('forbids business-owner actions for non-owner members', () => {
+    const req = {
+      headers: { 'x-business-id': 'biz-1' },
+      user: { id: 'user-1', role: 'member' },
+    };
+    const next = jest.fn();
+
+    expect(() => requireBusinessOwner(req as never, {} as never, next)).toThrow('business ownership');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('permits business-owner actions for owner role', () => {
+    const req = {
+      headers: { 'x-business-id': 'biz-1' },
+      user: { id: 'user-1', role: 'owner' },
+    };
+    const next = jest.fn();
+
+    requireBusinessOwner(req as never, {} as never, next);
+
+    expect(next).toHaveBeenCalled();
   });
 
   it('rejects tenant context when membership is missing', async () => {
