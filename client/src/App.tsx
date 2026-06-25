@@ -183,7 +183,8 @@ export function App() {
 
   const createClient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     await request<Client>('/api/clients', {
       method: 'POST',
       body: JSON.stringify({
@@ -191,14 +192,15 @@ export function App() {
         email: String(form.get('email') || '') || null,
       }),
     });
-    event.currentTarget.reset();
+    formElement.reset();
     setMessage('Client created.');
     await refresh();
   };
 
   const createQuote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const clientId = String(form.get('clientId'));
     await request<Quote>('/api/quotes', {
       method: 'POST',
@@ -216,7 +218,7 @@ export function App() {
         ],
       }),
     });
-    event.currentTarget.reset();
+    formElement.reset();
     setMessage('Accepted quote created.');
     await refresh();
   };
@@ -231,7 +233,8 @@ export function App() {
   const createPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedInvoice) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     await request<Payment>(`/api/invoices/${selectedInvoice.id}/payments`, {
       method: 'POST',
       body: JSON.stringify({
@@ -239,7 +242,7 @@ export function App() {
         method: String(form.get('method') || 'manual'),
       }),
     });
-    event.currentTarget.reset();
+    formElement.reset();
     setMessage('Payment recorded.');
     await refresh();
   };

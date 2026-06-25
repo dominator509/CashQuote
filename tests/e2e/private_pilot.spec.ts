@@ -23,7 +23,7 @@ test('private pilot workflow reaches invoice print/export', async ({ page }) => 
   await page.getByPlaceholder('Client name').fill(`Pilot Client ${unique}`);
   await page.getByPlaceholder('Email').fill(`client-${unique}@example.com`);
   await page.getByRole('button', { name: 'Create Client' }).click();
-  await expect(page.getByText(`Pilot Client ${unique}`)).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: `Pilot Client ${unique}` })).toBeVisible();
 
   const quoteBuilder = page.locator('form').filter({ hasText: 'Quote Builder' });
   await quoteBuilder.locator('select').selectOption({ label: `Pilot Client ${unique}` });
@@ -31,12 +31,9 @@ test('private pilot workflow reaches invoice print/export', async ({ page }) => 
   await quoteBuilder.getByPlaceholder('Price').fill('250');
   await quoteBuilder.getByRole('button', { name: 'Create Accepted Quote' }).click();
 
-  await expect(page.getByText('$250.00')).toBeVisible();
-  await page
-    .locator('article')
-    .filter({ hasText: `Pilot Client ${unique}` })
-    .getByRole('button', { name: 'Convert' })
-    .click();
+  const quoteRow = page.locator('article').filter({ hasText: `Pilot Client ${unique}` }).first();
+  await expect(quoteRow.getByText('$250.00')).toBeVisible();
+  await quoteRow.getByRole('button', { name: 'Convert' }).click();
   await expect(page.getByText('Quote converted to invoice.')).toBeVisible();
 
   await page.getByPlaceholder('Payment').fill('250');
