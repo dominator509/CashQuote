@@ -94,6 +94,19 @@ button:hover {
   gap: 12px;
 }
 
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.note {
+  color: #52616b;
+  font-size: 0.92rem;
+  margin: 0;
+}
+
 .row {
   align-items: center;
   border-top: 1px solid #edf0f2;

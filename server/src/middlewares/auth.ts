@@ -20,7 +20,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
   const token = req.cookies.token;
 
   if (!token) {
-    throw new AppError('Unauthorized: No token provided', 401);
+    throw new AppError('Unauthorized: No token provided', 401, 'AUTH_REQUIRED');
   }
 
   try {
@@ -28,6 +28,6 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
     req.user = { id: decoded.userId };
     next();
   } catch {
-    throw new AppError('Unauthorized: Invalid token', 401);
+    throw new AppError('Unauthorized: Invalid token', 401, 'AUTH_INVALID');
   }
 };

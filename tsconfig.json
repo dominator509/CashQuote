@@ -7,5 +7,6 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["jest"]
-  }
+  },
+  "exclude": ["node_modules", "client/dist", "server/dist", "packages/*/dist"]
 }

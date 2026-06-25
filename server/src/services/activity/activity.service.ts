@@ -28,3 +28,22 @@ export const logActivity = async ({
     },
   });
 };
+
+export const listActivityLogs = async (
+  businessId: string,
+  input: { limit: number; cursor?: string }
+) => {
+  const take = Math.min(Math.max(input.limit, 1), 100);
+  const logs = await prisma.activityLog.findMany({
+    where: { businessId },
+    orderBy: { createdAt: 'desc' },
+    take: take + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+  });
+
+  const nextCursor = logs.length > take ? logs[take].id : null;
+  return {
+    items: logs.slice(0, take),
+    nextCursor,
+  };
+};

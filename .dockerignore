@@ -1,0 +1,13 @@
+node_modules
+coverage
+client/dist
+server/dist
+packages/*/dist
+.git
+.github
+.env
+.env.*
+*.log
+playwright-report
+test-results
+*.tsbuildinfo

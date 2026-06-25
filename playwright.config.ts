@@ -1,0 +1,37 @@
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  timeout: 60_000,
+  use: {
+    baseURL: 'http://127.0.0.1:5173',
+    trace: 'retain-on-failure',
+  },
+  webServer: [
+    {
+      command: 'npm run dev --workspace server',
+      url: 'http://127.0.0.1:3000/healthz',
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NODE_ENV: 'e2e',
+        PORT: '3000',
+        DATABASE_URL: process.env.DATABASE_URL || '',
+        JWT_SECRET: process.env.JWT_SECRET || 'e2e-jwt-secret',
+        PILOT_ACCESS_CODE: process.env.PILOT_ACCESS_CODE || 'e2e-pilot-code',
+        PILOT_EMAIL_ALLOWLIST: process.env.PILOT_EMAIL_ALLOWLIST || '',
+        ALLOW_MOCK_EMAIL: 'true',
+      },
+    },
+    {
+      command: 'npm run dev --workspace client -- --host 127.0.0.1',
+      url: 'http://127.0.0.1:5173',
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+});

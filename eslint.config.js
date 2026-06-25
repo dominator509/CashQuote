@@ -15,6 +15,18 @@ module.exports = [
     ],
   },
   js.configs.recommended,
+  {
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+      },
+    },
+  },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.ts', '**/*.tsx'],

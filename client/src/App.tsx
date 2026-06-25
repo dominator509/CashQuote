@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 interface Business {
   id: string;
   name: string;
+  role?: string;
 }
 
 interface Client {
@@ -59,6 +60,15 @@ interface Radar {
   totalAtRisk: number;
 }
 
+interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
+  business: Business;
+}
+
 const dollars = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
@@ -71,14 +81,21 @@ export function App() {
   const [radar, setRadar] = useState<Radar | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [message, setMessage] = useState('Sign in with demo login to begin.');
+  const [pilotEmail, setPilotEmail] = useState('');
+  const [pilotAccessCode, setPilotAccessCode] = useState('');
 
   const selectedInvoice = useMemo(
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? invoices[0],
     [invoices, selectedInvoiceId]
   );
 
-  const request = async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-    if (!business && path !== '/api/auth/demo-login') {
+  const request = async <T,>(
+    path: string,
+    init: RequestInit = {},
+    businessContext: Business | null = business
+  ): Promise<T> => {
+    const authPaths = ['/api/auth/demo-login', '/api/auth/pilot-login', '/api/auth/me', '/api/auth/logout'];
+    if (!businessContext && !authPaths.includes(path)) {
       throw new Error('Login required');
     }
 
@@ -87,7 +104,7 @@ export function App() {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(business ? { 'x-business-id': business.id } : {}),
+        ...(businessContext ? { 'x-business-id': businessContext.id } : {}),
         ...init.headers,
       },
     });
@@ -104,13 +121,13 @@ export function App() {
     return response.json() as Promise<T>;
   };
 
-  const refresh = async () => {
+  const refresh = async (businessContext: Business | null = business) => {
     const [nextClients, nextQuotes, nextInvoices, nextReminders, nextRadar] = await Promise.all([
-      request<Client[]>('/api/clients'),
-      request<Quote[]>('/api/quotes'),
-      request<Invoice[]>('/api/invoices'),
-      request<Reminder[]>('/api/reminders'),
-      request<Radar>('/api/radar/insights'),
+      request<Client[]>('/api/clients', {}, businessContext),
+      request<Quote[]>('/api/quotes', {}, businessContext),
+      request<Invoice[]>('/api/invoices', {}, businessContext),
+      request<Reminder[]>('/api/reminders', {}, businessContext),
+      request<Radar>('/api/radar/insights', {}, businessContext),
     ]);
 
     setClients(nextClients);
@@ -121,13 +138,47 @@ export function App() {
     setSelectedInvoiceId((current) => current || nextInvoices[0]?.id || '');
   };
 
+  useEffect(() => {
+    request<AuthResponse>('/api/auth/me')
+      .then((result) => {
+        setBusiness(result.business);
+        setMessage(`Session restored for ${result.business.name}.`);
+        return refresh(result.business);
+      })
+      .catch(() => undefined);
+  }, []);
+
   const login = async () => {
-    const result = await request<{ business: Business }>('/api/auth/demo-login', { method: 'POST' });
+    const result = await request<AuthResponse>('/api/auth/demo-login', { method: 'POST' });
     setBusiness(result.business);
     setMessage(`Logged into ${result.business.name}.`);
-    setTimeout(() => {
-      refresh().catch((error) => setMessage(error.message));
-    }, 0);
+    await refresh(result.business);
+  };
+
+  const pilotLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await request<AuthResponse>('/api/auth/pilot-login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: pilotEmail,
+        accessCode: pilotAccessCode,
+      }),
+    });
+    setBusiness(result.business);
+    setMessage(`Logged into ${result.business.name}.`);
+    await refresh(result.business);
+  };
+
+  const logout = async () => {
+    await request<void>('/api/auth/logout', { method: 'POST' });
+    setBusiness(null);
+    setClients([]);
+    setQuotes([]);
+    setInvoices([]);
+    setReminders([]);
+    setRadar(null);
+    setSelectedInvoiceId('');
+    setMessage('Signed out.');
   };
 
   const createClient = async (event: FormEvent<HTMLFormElement>) => {
@@ -205,7 +256,7 @@ export function App() {
 
   const sendReminder = async (id: string) => {
     await request<Reminder>(`/api/reminders/${id}/send`, { method: 'POST' });
-    setMessage('Reminder sent with mock mail service.');
+    setMessage('Reminder sent.');
     await refresh();
   };
 
@@ -221,6 +272,23 @@ export function App() {
         <section className="login-panel">
           <h1>CashQuote</h1>
           <p>{message}</p>
+          <form onSubmit={pilotLogin} className="login-form">
+            <input
+              value={pilotEmail}
+              onChange={(event) => setPilotEmail(event.target.value)}
+              placeholder="Pilot email"
+              type="email"
+              required
+            />
+            <input
+              value={pilotAccessCode}
+              onChange={(event) => setPilotAccessCode(event.target.value)}
+              placeholder="Access code"
+              type="password"
+              required
+            />
+            <button type="submit">Pilot Login</button>
+          </form>
           <button type="button" onClick={login}>Demo Login</button>
         </section>
       </main>
@@ -236,6 +304,9 @@ export function App() {
         </div>
         <button type="button" onClick={() => refresh().catch((error) => setMessage(error.message))}>
           Refresh
+        </button>
+        <button type="button" onClick={() => logout().catch((error) => setMessage(error.message))}>
+          Logout
         </button>
       </header>
 
@@ -283,6 +354,7 @@ export function App() {
 
         <section className="panel">
           <h2>Invoices</h2>
+          <p className="note">Payments are internal records only; no online card processing is connected.</p>
           <select value={selectedInvoice?.id ?? ''} onChange={(event) => setSelectedInvoiceId(event.target.value)}>
             {invoices.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>

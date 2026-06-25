@@ -226,6 +226,24 @@ describe('Production MVP security and workflow seams', () => {
     expect(sent.status).toBe('sent');
   });
 
+  it('fails reminder send in production when email is not configured', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SMTP_URL;
+    delete process.env.SMTP_FROM;
+    delete process.env.ALLOW_MOCK_EMAIL;
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-prod',
+      status: 'pending',
+      entityId: 'quote-1',
+      entityType: 'quote',
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-prod')).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'EMAIL_NOT_CONFIGURED',
+    });
+  });
+
   it('prevents sending a reminder that is already sent', async () => {
     (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
       id: 'rem-2',

@@ -1,6 +1,6 @@
 import { prisma } from 'db';
 import { AppError } from '../../middlewares/error';
-import { MockMailService } from '../mail/mock-mail.service';
+import { getReminderMailService } from '../mail/mail-provider.service';
 
 type EntityType = 'quote' | 'invoice';
 
@@ -70,7 +70,7 @@ export const sendReminder = async (businessId: string, userId: string | undefine
   }
 
   const entityType = reminder.entityType === 'quote' ? 'quote' : 'invoice';
-  const mailService = new MockMailService();
+  const mailService = getReminderMailService();
   await mailService.sendReminder({
     businessId,
     entityId: reminder.entityId,

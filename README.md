@@ -5,11 +5,12 @@ CashQuote is a Production MVP for AI-assisted quote and invoice workflows. It in
 ## MVP Surface
 
 - Demo login with HTTP-only JWT cookie.
+- Private-pilot login with email plus access code.
 - Business membership-based tenant isolation through `x-business-id`.
 - Client, quote, invoice, payment, reminder, AI generation, and Lost Cash Radar APIs.
 - Quote-to-invoice conversion with database idempotency through `Invoice.sourceQuoteId`.
 - Mock AI fallback when OpenAI is unavailable or fails.
-- Mock reminder email sending.
+- SMTP reminder email sending with non-production mock fallback.
 - Minimal client workflow: login, create client, create accepted quote, convert invoice, record payment, schedule/send/resolve reminders, print invoice.
 
 ## Setup
@@ -59,7 +60,13 @@ npm test
 npm run lint
 ```
 
-CI runs install, Prisma generate, migrations, typecheck, build, and tests against PostgreSQL.
+CI runs install, Prisma generate, migrations, lint, typecheck, build, unit/integration/security tests, high-severity npm audit, production smoke, and Playwright e2e against PostgreSQL.
+
+Private-pilot launch validation:
+
+```bash
+npm run validate:prod
+```
 
 ## Production Start
 
@@ -70,6 +77,8 @@ npm run start:prod
 
 `NODE_ENV=production` requires `JWT_SECRET`; startup-auth paths fail closed without it.
 
+Production also requires `DATABASE_URL`, `APP_ORIGIN`, and `PILOT_ACCESS_CODE`. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
+
 ## Boundaries
 
-Payment processing is internal record keeping only; no real processor is integrated. Email is a mock service. The frontend is intentionally workflow-complete but visually minimal.
+Payment processing is internal record keeping only; no real processor is integrated. Email uses SMTP in production and mock email only where explicitly allowed. The frontend is intentionally workflow-complete but visually minimal.
