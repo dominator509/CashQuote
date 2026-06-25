@@ -124,3 +124,35 @@ The audit output still reported 18 moderate advisories in the Jest dependency ch
 - Updated `playwright.config.ts` to align `APP_ORIGIN` and `CORS_ORIGIN` with the Playwright host `http://127.0.0.1:5173`.
 - Fixed async React form handlers in `client/src/App.tsx` by preserving the form element before awaited API calls.
 - Tightened Playwright locators in `tests/e2e/private_pilot.spec.ts` so the workflow assertions target the intended client and quote rows.
+
+## Moderate Advisory Closure
+
+Run timestamp: 2026-06-24T22:28:00-07:00
+
+Change:
+
+```text
+Added an npm override for js-yaml ^4.2.0 so the Jest/Istanbul coverage path resolves away from vulnerable js-yaml <=4.1.1.
+Updated Jest config to exclude tests/e2e from root Jest runs; Playwright remains covered by npm run test:e2e.
+```
+
+Resolved dependency path:
+
+```text
+cashquote@1.0.0 C:\dev\CashQuote
+└─┬ ts-jest@29.4.11
+  └─┬ @jest/transform@30.4.1
+    └─┬ babel-plugin-istanbul@7.0.1
+      └─┬ @istanbuljs/load-nyc-config@1.1.0
+        └── js-yaml@4.2.0 deduped
+```
+
+Verification:
+
+```text
+npm install: found 0 vulnerabilities
+npm audit: found 0 vulnerabilities
+npm test -- --runInBand: 6 passed, 6 total; 33 passed, 33 total
+npm run build: passed
+git diff --check: passed
+```
