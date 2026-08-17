@@ -1,0 +1,6 @@
+{
+  "typecheck_failure": {
+    "description": "Typecheck failed with multiple TS7006 implicitly has any type errors in server/src/controllers and server/src/services",
+    "location": "server workspace"
+  }
+}

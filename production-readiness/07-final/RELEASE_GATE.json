@@ -1,0 +1,4 @@
+{
+  "verdict": "NO_GO",
+  "reason": "Typecheck failed, and REMEDIATION_MODE is false."
+}

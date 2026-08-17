@@ -1,0 +1,16 @@
+{
+  "target_repository": "/app",
+  "base_ref": "unknown",
+  "candidate_ref": "f072fd2445c7822c32b82a08c85bbccbf8495393",
+  "execution_adapter": "Local shell and repository checkout",
+  "authorization_defaults": {
+    "remediation_mode": false,
+    "production_testing": false,
+    "destructive_testing": false,
+    "external_network_targets": false,
+    "human_uat": false,
+    "persistent_runner": false
+  },
+  "output_path": "/app/production-readiness",
+  "registry_count": 484
+}
