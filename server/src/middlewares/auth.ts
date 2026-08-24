@@ -24,7 +24,16 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as { userId: string };
+    const decoded = jwt.verify(token, getJwtSecret());
+    if (
+      typeof decoded !== 'object' ||
+      decoded === null ||
+      typeof decoded.userId !== 'string' ||
+      decoded.userId.trim() === ''
+    ) {
+      throw new Error('Invalid token payload');
+    }
+
     req.user = { id: decoded.userId };
     next();
   } catch {

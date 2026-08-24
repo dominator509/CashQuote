@@ -23,6 +23,11 @@ export const createInvoicePayment = async (
   input: { amount: number; method: string; paidAt?: string }
 ) => {
   return prisma.$transaction(async (tx) => {
+    const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+    if (paidAt.getTime() > Date.now()) {
+      throw new AppError('Payment date cannot be in the future', 400, 'PAYMENT_DATE_IN_FUTURE');
+    }
+
     const invoice = await tx.invoice.findFirst({
       where: { id: invoiceId, businessId },
       include: { payments: true },
@@ -47,7 +52,7 @@ export const createInvoicePayment = async (
         businessId,
         amount: input.amount,
         method: input.method,
-        paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+        paidAt,
       },
     });
 
@@ -88,6 +93,10 @@ export const deleteInvoicePayment = async (
 
     if (!invoice) {
       throw new AppError('Invoice not found', 404);
+    }
+
+    if (invoice.status === 'void') {
+      throw new AppError('Cannot delete payments for a void invoice', 400);
     }
 
     const targetPayment = invoice.payments.find((candidate) => candidate.id === paymentId);

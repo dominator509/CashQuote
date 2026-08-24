@@ -15,16 +15,25 @@ declare global {
   }
 }
 
+const getBusinessIdHeader = (value: string | string[] | undefined): string => {
+  if (typeof value !== 'string') {
+    throw new AppError('Bad Request: Missing x-business-id header', 400, 'TENANT_REQUIRED');
+  }
+
+  const businessId = value.trim();
+  if (!businessId) {
+    throw new AppError('Bad Request: Missing x-business-id header', 400, 'TENANT_REQUIRED');
+  }
+
+  return businessId;
+};
+
 export const requireBusinessId = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const businessId = req.headers['x-business-id'] as string;
-
-  if (!businessId) {
-    throw new AppError('Bad Request: Missing x-business-id header', 400, 'TENANT_REQUIRED');
-  }
+  const businessId = getBusinessIdHeader(req.headers['x-business-id']);
 
   if (!req.user?.id) {
     throw new AppError('Unauthorized: Missing user context', 401, 'AUTH_REQUIRED');

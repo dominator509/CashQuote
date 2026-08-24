@@ -77,7 +77,7 @@ npm run start:prod
 
 `NODE_ENV=production` requires `JWT_SECRET`; startup-auth paths fail closed without it.
 
-Production also requires `DATABASE_URL`, `APP_ORIGIN`, and `PILOT_ACCESS_CODE`. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
+Production also requires `DATABASE_URL`, `APP_ORIGIN`, and a private, non-default `PILOT_ACCESS_CODE` of at least 16 characters. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
 
 ## Boundaries
 

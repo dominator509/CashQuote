@@ -4,7 +4,6 @@ import { getLostCashInsights } from '../../server/src/services/radar/radar.servi
 jest.mock('db', () => ({
   prisma: {
     quote: { findMany: jest.fn() },
-    activityLog: { findMany: jest.fn() },
     invoice: { findMany: jest.fn() }
   }
 }));
@@ -23,17 +22,14 @@ describe('Phase 2: Data Flow & State Tracking Validation', () => {
       { id: 'q2', businessId, status: 'accepted', total: 500 }
     ];
 
-    const mockLogs = [
-      { entityId: 'q1', action: 'convert_quote_to_invoice' }
-    ];
-
     const mockInvoices = [
       { id: 'i1', businessId, status: 'unpaid', total: 200, dueDate: new Date(Date.now() - 100000) }
     ];
 
     (prisma.quote.findMany as jest.Mock).mockResolvedValue(mockQuotes);
-    (prisma.activityLog.findMany as jest.Mock).mockResolvedValue(mockLogs);
-    (prisma.invoice.findMany as jest.Mock).mockResolvedValue(mockInvoices);
+    (prisma.invoice.findMany as jest.Mock)
+      .mockResolvedValueOnce([{ sourceQuoteId: 'q1' }])
+      .mockResolvedValueOnce(mockInvoices);
 
     const result = await getLostCashInsights(businessId);
 
@@ -47,5 +43,12 @@ describe('Phase 2: Data Flow & State Tracking Validation', () => {
 
     // Validate total reduction
     expect(result.totalAtRisk).toBe(500 + 200); // q2.total + i1.total
+    expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        businessId,
+        sourceQuoteId: { in: ['q1', 'q2'] },
+      },
+      select: { sourceQuoteId: true },
+    });
   });
 });

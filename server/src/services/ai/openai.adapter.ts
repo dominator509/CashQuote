@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { IAIService, AIGeneratedLineItem, aiGeneratedLineItemSchema } from './ai.service';
 import { z } from 'zod';
 import { AppError } from '../../middlewares/error';
+import { logger } from '../logger/logger.service';
 
 const schema = z.object({
   items: z.array(aiGeneratedLineItemSchema)
@@ -39,7 +40,7 @@ export class OpenAiAdapter implements IAIService {
 
       return validated.items;
     } catch (error) {
-      console.error('OpenAI adapter error:', error);
+      logger.warn({ error }, 'OpenAI adapter generation failed');
       throw new AppError('AI generation failed. Please try again manually.', 500);
     }
   }

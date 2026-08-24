@@ -61,4 +61,17 @@ describe('AI API hardening behavior', () => {
       })
     );
   });
+
+  it('rejects oversized AI notes before persistence', async () => {
+    const response = await request(app)
+      .post('/api/ai/generate')
+      .set('Cookie', [`token=${token}`])
+      .set('x-business-id', 'biz-1')
+      .send({ notes: 'x'.repeat(5001) });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+    expect(prisma.aiRequest.create).not.toHaveBeenCalled();
+    expect(prisma.activityLog.create).not.toHaveBeenCalled();
+  });
 });

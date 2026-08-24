@@ -14,12 +14,17 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   border: 1px solid #cbd2d9;
   border-radius: 6px;
   font: inherit;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 8px 12px;
+}
+
+textarea {
+  resize: vertical;
 }
 
 button {

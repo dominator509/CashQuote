@@ -3,6 +3,7 @@ import { AppError } from '../../middlewares/error';
 import { getReminderMailService } from '../mail/mail-provider.service';
 
 type EntityType = 'quote' | 'invoice';
+const REMINDER_CLOCK_SKEW_MS = 60_000;
 
 const ensureEntityExists = async (entityType: EntityType, entityId: string, businessId: string) => {
   if (entityType === 'quote') {
@@ -27,29 +28,48 @@ export const createReminder = async (
   userId: string | undefined,
   input: { entityType: EntityType; entityId: string; scheduledAt: string }
 ) => {
-  await ensureEntityExists(input.entityType, input.entityId, businessId);
+  const scheduledAt = new Date(input.scheduledAt);
+  if (scheduledAt.getTime() < Date.now() - REMINDER_CLOCK_SKEW_MS) {
+    throw new AppError('Reminder date cannot be in the past', 400, 'REMINDER_DATE_IN_PAST');
+  }
 
-  const reminder = await prisma.reminder.create({
-    data: {
+  await ensureEntityExists(input.entityType, input.entityId, businessId);
+  const activeReminder = await prisma.reminder.findFirst({
+    where: {
       businessId,
       entityType: input.entityType,
       entityId: input.entityId,
-      scheduledAt: new Date(input.scheduledAt),
+      status: { in: ['pending', 'sent'] },
     },
   });
 
-  await prisma.activityLog.create({
-    data: {
-      businessId,
-      userId,
-      action: 'reminder_create',
-      entityId: reminder.id,
-      entityType: 'reminder',
-      details: `Created reminder for ${input.entityType} ${input.entityId}`,
-    },
-  });
+  if (activeReminder) {
+    throw new AppError('Active reminder already exists for this entity', 409, 'ACTIVE_REMINDER_EXISTS');
+  }
 
-  return reminder;
+  return prisma.$transaction(async (tx) => {
+    const reminder = await tx.reminder.create({
+      data: {
+        businessId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        scheduledAt,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        businessId,
+        userId,
+        action: 'reminder_create',
+        entityId: reminder.id,
+        entityType: 'reminder',
+        details: `Created reminder for ${input.entityType} ${input.entityId}`,
+      },
+    });
+
+    return reminder;
+  });
 };
 
 export const sendReminder = async (businessId: string, userId: string | undefined, id: string) => {
@@ -69,7 +89,12 @@ export const sendReminder = async (businessId: string, userId: string | undefine
     throw new AppError('Reminder has already been resolved', 409);
   }
 
+  if (new Date(reminder.scheduledAt).getTime() > Date.now() + REMINDER_CLOCK_SKEW_MS) {
+    throw new AppError('Reminder is not scheduled to send yet', 409, 'REMINDER_NOT_DUE');
+  }
+
   const entityType = reminder.entityType === 'quote' ? 'quote' : 'invoice';
+  await ensureEntityExists(entityType, reminder.entityId, businessId);
   const mailService = getReminderMailService();
   await mailService.sendReminder({
     businessId,
@@ -77,22 +102,24 @@ export const sendReminder = async (businessId: string, userId: string | undefine
     entityType,
   });
 
-  const updated = await prisma.reminder.update({
-    where: { id },
-    data: { status: 'sent' },
-  });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.reminder.update({
+      where: { id },
+      data: { status: 'sent' },
+    });
 
-  await prisma.activityLog.create({
-    data: {
-      businessId,
-      userId,
-      action: 'reminder_send',
-      entityId: id,
-      entityType: 'reminder',
-    },
-  });
+    await tx.activityLog.create({
+      data: {
+        businessId,
+        userId,
+        action: 'reminder_send',
+        entityId: id,
+        entityType: 'reminder',
+      },
+    });
 
-  return updated;
+    return updated;
+  });
 };
 
 export const resolveReminder = async (
@@ -112,20 +139,22 @@ export const resolveReminder = async (
     throw new AppError('Reminder is already resolved', 409);
   }
 
-  const updated = await prisma.reminder.update({
-    where: { id },
-    data: { status: 'resolved' },
-  });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.reminder.update({
+      where: { id },
+      data: { status: 'resolved' },
+    });
 
-  await prisma.activityLog.create({
-    data: {
-      businessId,
-      userId,
-      action: 'reminder_resolve',
-      entityId: id,
-      entityType: 'reminder',
-    },
-  });
+    await tx.activityLog.create({
+      data: {
+        businessId,
+        userId,
+        action: 'reminder_resolve',
+        entityId: id,
+        entityType: 'reminder',
+      },
+    });
 
-  return updated;
+    return updated;
+  });
 };

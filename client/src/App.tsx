@@ -69,6 +69,12 @@ interface AuthResponse {
   business: Business;
 }
 
+interface AiGenerateResponse {
+  items: LineItem[];
+  provider: string;
+  degraded: boolean;
+}
+
 const dollars = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
@@ -83,11 +89,27 @@ export function App() {
   const [message, setMessage] = useState('Sign in with demo login to begin.');
   const [pilotEmail, setPilotEmail] = useState('');
   const [pilotAccessCode, setPilotAccessCode] = useState('');
+  const [quoteDescription, setQuoteDescription] = useState('');
+  const [quoteQuantity, setQuoteQuantity] = useState('1');
+  const [quotePrice, setQuotePrice] = useState('');
+  const [quoteTaxRatePercent, setQuoteTaxRatePercent] = useState('');
+  const [aiNotes, setAiNotes] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   const selectedInvoice = useMemo(
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? invoices[0],
     [invoices, selectedInvoiceId]
   );
+
+  const clearWorkspace = () => {
+    setBusiness(null);
+    setClients([]);
+    setQuotes([]);
+    setInvoices([]);
+    setReminders([]);
+    setRadar(null);
+    setSelectedInvoiceId('');
+  };
 
   const request = async <T,>(
     path: string,
@@ -111,6 +133,10 @@ export function App() {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: 'Request failed' }));
+      if ((response.status === 401 || response.status === 403) && !authPaths.includes(path)) {
+        clearWorkspace();
+        setMessage('Session expired. Sign in again.');
+      }
       throw new Error(body.error ?? 'Request failed');
     }
 
@@ -165,19 +191,14 @@ export function App() {
       }),
     });
     setBusiness(result.business);
+    setPilotAccessCode('');
     setMessage(`Logged into ${result.business.name}.`);
     await refresh(result.business);
   };
 
   const logout = async () => {
     await request<void>('/api/auth/logout', { method: 'POST' });
-    setBusiness(null);
-    setClients([]);
-    setQuotes([]);
-    setInvoices([]);
-    setReminders([]);
-    setRadar(null);
-    setSelectedInvoiceId('');
+    clearWorkspace();
     setMessage('Signed out.');
   };
 
@@ -207,20 +228,51 @@ export function App() {
       body: JSON.stringify({
         clientId,
         status: 'accepted',
-        taxRatePercent: Number(form.get('taxRatePercent') || 0),
+        taxRatePercent: Number(quoteTaxRatePercent || 0),
         lineItems: [
           {
-            description: String(form.get('description')),
-            quantity: Number(form.get('quantity') || 1),
-            price: Math.round(Number(form.get('price') || 0) * 100),
+            description: quoteDescription,
+            quantity: Number(quoteQuantity || 1),
+            price: Math.round(Number(quotePrice || 0) * 100),
             category: 'Service',
           },
         ],
       }),
     });
     formElement.reset();
+    setQuoteDescription('');
+    setQuoteQuantity('1');
+    setQuotePrice('');
+    setQuoteTaxRatePercent('');
     setMessage('Accepted quote created.');
     await refresh();
+  };
+
+  const generateAiDraft = async () => {
+    const notes = aiNotes.trim();
+    if (!notes) {
+      setMessage('Add job notes before generating a draft.');
+      return;
+    }
+
+    setIsGeneratingAi(true);
+    try {
+      const result = await request<AiGenerateResponse>('/api/ai/generate', {
+        method: 'POST',
+        body: JSON.stringify({ notes }),
+      });
+      const firstItem = result.items[0];
+      if (!firstItem) {
+        setMessage('AI returned no draft line items.');
+        return;
+      }
+      setQuoteDescription(firstItem.description);
+      setQuoteQuantity(String(firstItem.quantity));
+      setQuotePrice((firstItem.price / 100).toFixed(2));
+      setMessage(result.degraded ? 'Draft generated with fallback AI.' : `Draft generated with ${result.provider}.`);
+    } finally {
+      setIsGeneratingAi(false);
+    }
   };
 
   const convertQuote = async (quoteId: string) => {
@@ -336,10 +388,49 @@ export function App() {
               <option key={client.id} value={client.id}>{client.name}</option>
             ))}
           </select>
-          <input name="description" placeholder="Line item" required />
-          <input name="quantity" type="number" min="1" defaultValue="1" />
-          <input name="price" type="number" min="0" step="0.01" placeholder="Price" required />
-          <input name="taxRatePercent" type="number" min="0" max="100" step="0.01" placeholder="Tax %" />
+          <textarea
+            value={aiNotes}
+            onChange={(event) => setAiNotes(event.target.value)}
+            placeholder="Job notes"
+            rows={3}
+          />
+          <button type="button" onClick={() => generateAiDraft().catch((error) => setMessage(error.message))} disabled={isGeneratingAi}>
+            {isGeneratingAi ? 'Generating...' : 'Generate Draft'}
+          </button>
+          <input
+            name="description"
+            placeholder="Line item"
+            value={quoteDescription}
+            onChange={(event) => setQuoteDescription(event.target.value)}
+            required
+          />
+          <input
+            name="quantity"
+            type="number"
+            min="1"
+            value={quoteQuantity}
+            onChange={(event) => setQuoteQuantity(event.target.value)}
+          />
+          <input
+            name="price"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Price"
+            value={quotePrice}
+            onChange={(event) => setQuotePrice(event.target.value)}
+            required
+          />
+          <input
+            name="taxRatePercent"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            placeholder="Tax %"
+            value={quoteTaxRatePercent}
+            onChange={(event) => setQuoteTaxRatePercent(event.target.value)}
+          />
           <button type="submit">Create Accepted Quote</button>
         </form>
 

@@ -18,6 +18,9 @@ export const calculateLineItemsSubtotal = (items: LineItemInput[]): number => {
   return items.reduce((acc, item) => acc + item.quantity * item.price, 0);
 };
 
+export const isDiscountWithinSubtotal = (subtotal: number, discountAmount: number): boolean =>
+  discountAmount <= subtotal;
+
 export const calculateTotals = (
   subtotal: number,
   taxRatePercent: number, // e.g. 8 for 8%

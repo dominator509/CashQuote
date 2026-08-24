@@ -1,7 +1,11 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
-import { calculateLineItemsSubtotal, calculateTotals } from '../services/billing/math.service';
+import {
+  calculateLineItemsSubtotal,
+  calculateTotals,
+  isDiscountWithinSubtotal,
+} from '../services/billing/math.service';
 import { createQuoteSchema, updateQuoteSchema } from 'shared';
 import { convertQuoteToInvoice as convertService } from '../services/billing/conversion.service';
 import { logActivity } from '../services/activity/activity.service';
@@ -45,6 +49,9 @@ export const createQuote = async (req: Request, res: Response) => {
   }
 
   const subtotal = calculateLineItemsSubtotal(data.lineItems);
+  if (!isDiscountWithinSubtotal(subtotal, data.discountAmount)) {
+    throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+  }
   const totals = calculateTotals(subtotal, data.taxRatePercent, data.discountAmount);
 
   const quote = await prisma.quote.create({
@@ -87,11 +94,19 @@ export const updateQuote = async (req: Request, res: Response) => {
 
   const existingQuote = await prisma.quote.findFirst({
     where: { id, businessId },
-    include: { lineItems: true },
+    include: { lineItems: true, _count: { select: { sourceInvoices: true } } },
   });
 
   if (!existingQuote) {
     throw new AppError('Quote not found', 404);
+  }
+
+  if ((existingQuote._count?.sourceInvoices ?? 0) > 0) {
+    throw new AppError(
+      'Quote has already been converted to an invoice and cannot be updated',
+      409,
+      'QUOTE_HAS_INVOICE'
+    );
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -124,6 +139,9 @@ export const updateQuote = async (req: Request, res: Response) => {
     // 2. Recalculate Totals
     const subtotal = calculateLineItemsSubtotal(currentLineItems);
     const discountAmount = data.discountAmount ?? existingQuote.discount;
+    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
+      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+    }
 
     // Derive effective tax rate if not provided:
     // oldTax = round((oldSubtotal - oldDiscount) * oldRate / 100)
@@ -169,10 +187,35 @@ export const deleteQuote = async (req: Request, res: Response) => {
 
   const quote = await prisma.quote.findFirst({
     where: { id, businessId },
+    include: { _count: { select: { sourceInvoices: true } } },
   });
 
   if (!quote) {
     throw new AppError('Quote not found', 404);
+  }
+
+  if (quote._count.sourceInvoices > 0) {
+    throw new AppError(
+      'Quote has been converted to an invoice and cannot be deleted',
+      409,
+      'QUOTE_HAS_INVOICE'
+    );
+  }
+
+  const activeReminder = await prisma.reminder.findFirst({
+    where: {
+      businessId,
+      entityId: id,
+      entityType: 'quote',
+      status: { in: ['pending', 'sent'] },
+    },
+  });
+  if (activeReminder) {
+    throw new AppError(
+      'Quote has active reminders and cannot be deleted',
+      409,
+      'QUOTE_HAS_ACTIVE_REMINDERS'
+    );
   }
 
   await prisma.quote.delete({
@@ -195,13 +238,5 @@ export const convertQuote = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const invoice = await convertService(id, businessId);
-  await logActivity({
-    businessId,
-    userId: req.user?.id,
-    action: 'quote_convert',
-    entityId: id,
-    entityType: 'quote',
-    details: `Created invoice ${invoice.id}`,
-  });
   res.status(201).json(invoice);
 };

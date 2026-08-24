@@ -10,6 +10,10 @@ export const getReminderMailService = (): IMailService => {
     return new SmtpMailService();
   }
 
+  if (process.env.SMTP_URL || process.env.SMTP_FROM) {
+    throw new AppError('Email provider is not configured', 503, 'EMAIL_NOT_CONFIGURED');
+  }
+
   if (isMockEmailAllowed()) {
     if (isProduction()) {
       logger.warn({ event: 'email_mock_allowed' }, 'Mock email enabled in production');

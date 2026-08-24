@@ -73,4 +73,27 @@ describe('Phase 3: Exhaustive Path & Branch Coverage', () => {
     expect(prisma.activityLog.create).toHaveBeenCalled();
     expect(result).toEqual({ id: 'inv-1' });
   });
+
+  it('Path 5: Duplicate conversion race should return a stable 409 conflict', async () => {
+    const mockQuote = {
+      id: quoteId,
+      clientId: 'client-1',
+      businessId,
+      status: 'accepted',
+      subtotal: 100,
+      tax: 10,
+      discount: 0,
+      total: 110,
+      lineItems: [{ description: 'Item 1', quantity: 1, price: 100, category: 'service' }]
+    };
+
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue(mockQuote);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.invoice.create as jest.Mock).mockRejectedValue({ code: 'P2002' });
+
+    await expect(convertQuoteToInvoice(quoteId, businessId)).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Quote has already been converted to an invoice'
+    });
+  });
 });

@@ -16,7 +16,9 @@ test('private pilot workflow reaches invoice print/export', async ({ page }) => 
   await expect(page.getByText('Pilot Login')).toBeVisible();
 
   await page.getByPlaceholder('Pilot email').fill(pilotEmail);
-  await page.getByPlaceholder('Access code').fill(process.env.PILOT_ACCESS_CODE || 'e2e-pilot-code');
+  await page
+    .getByPlaceholder('Access code')
+    .fill(process.env.PILOT_ACCESS_CODE || 'e2e-private-pilot-code-12345');
   await page.getByRole('button', { name: 'Pilot Login' }).click();
 
   await expect(page.getByText('Clients')).toBeVisible();
@@ -27,7 +29,11 @@ test('private pilot workflow reaches invoice print/export', async ({ page }) => 
 
   const quoteBuilder = page.locator('form').filter({ hasText: 'Quote Builder' });
   await quoteBuilder.locator('select').selectOption({ label: `Pilot Client ${unique}` });
+  await quoteBuilder.getByPlaceholder('Job notes').fill('consulting sprint');
+  await quoteBuilder.getByRole('button', { name: 'Generate Draft' }).click();
+  await expect(quoteBuilder.getByPlaceholder('Line item')).toHaveValue('Strategy Consulting');
   await quoteBuilder.getByPlaceholder('Line item').fill('Private pilot readiness review');
+  await quoteBuilder.locator('input[name="quantity"]').fill('1');
   await quoteBuilder.getByPlaceholder('Price').fill('250');
   await quoteBuilder.getByRole('button', { name: 'Create Accepted Quote' }).click();
 

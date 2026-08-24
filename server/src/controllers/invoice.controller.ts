@@ -1,9 +1,25 @@
 import { Request, Response } from 'express';
 import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
-import { calculateLineItemsSubtotal, calculateTotals } from '../services/billing/math.service';
+import {
+  calculateLineItemsSubtotal,
+  calculateTotals,
+  isDiscountWithinSubtotal,
+} from '../services/billing/math.service';
 import { createInvoiceSchema, updateInvoiceSchema } from 'shared';
 import { logActivity } from '../services/activity/activity.service';
+
+const deriveInvoiceStatus = (
+  requestedStatus: 'unpaid' | 'paid' | 'void' | undefined,
+  paidTotal: number,
+  invoiceTotal: number
+): 'unpaid' | 'paid' | 'void' => {
+  if (requestedStatus === 'void') {
+    return 'void';
+  }
+
+  return paidTotal >= invoiceTotal ? 'paid' : 'unpaid';
+};
 
 export const getInvoices = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -44,13 +60,16 @@ export const createInvoice = async (req: Request, res: Response) => {
   }
 
   const subtotal = calculateLineItemsSubtotal(data.lineItems);
+  if (!isDiscountWithinSubtotal(subtotal, data.discountAmount)) {
+    throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+  }
   const totals = calculateTotals(subtotal, data.taxRatePercent, data.discountAmount);
 
   const invoice = await prisma.invoice.create({
     data: {
       businessId,
       clientId: data.clientId,
-      status: data.status || 'unpaid',
+      status: deriveInvoiceStatus(data.status, 0, totals.total),
       subtotal: totals.subtotal,
       tax: totals.tax,
       discount: totals.discount,
@@ -87,11 +106,15 @@ export const updateInvoice = async (req: Request, res: Response) => {
 
   const existingInvoice = await prisma.invoice.findFirst({
     where: { id, businessId },
-    include: { lineItems: true },
+    include: { lineItems: true, payments: true },
   });
 
   if (!existingInvoice) {
     throw new AppError('Invoice not found', 404);
+  }
+
+  if (existingInvoice.status === 'void') {
+    throw new AppError('Void invoices cannot be updated', 409, 'INVOICE_IS_VOID');
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -124,6 +147,9 @@ export const updateInvoice = async (req: Request, res: Response) => {
     // 2. Recalculate Totals
     const subtotal = calculateLineItemsSubtotal(currentLineItems);
     const discountAmount = data.discountAmount ?? existingInvoice.discount;
+    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
+      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+    }
 
     let taxRatePercent = data.taxRatePercent;
     if (taxRatePercent === undefined) {
@@ -132,12 +158,17 @@ export const updateInvoice = async (req: Request, res: Response) => {
     }
 
     const totals = calculateTotals(subtotal, taxRatePercent, discountAmount);
+    const paidTotal = existingInvoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    if (paidTotal > totals.total) {
+      throw new AppError('Invoice total cannot be less than recorded payments', 400);
+    }
+    const nextStatus = deriveInvoiceStatus(data.status, paidTotal, totals.total);
 
     // 3. Update Invoice
     const updatedInvoice = await tx.invoice.update({
       where: { id },
       data: {
-        status: data.status,
+        status: nextStatus,
         subtotal: totals.subtotal,
         tax: totals.tax,
         discount: totals.discount,
@@ -167,10 +198,35 @@ export const deleteInvoice = async (req: Request, res: Response) => {
 
   const invoice = await prisma.invoice.findFirst({
     where: { id, businessId },
+    include: { _count: { select: { payments: true } } },
   });
 
   if (!invoice) {
     throw new AppError('Invoice not found', 404);
+  }
+
+  if (invoice._count.payments > 0) {
+    throw new AppError(
+      'Invoice has recorded payments and cannot be deleted',
+      409,
+      'INVOICE_HAS_PAYMENTS'
+    );
+  }
+
+  const activeReminder = await prisma.reminder.findFirst({
+    where: {
+      businessId,
+      entityId: id,
+      entityType: 'invoice',
+      status: { in: ['pending', 'sent'] },
+    },
+  });
+  if (activeReminder) {
+    throw new AppError(
+      'Invoice has active reminders and cannot be deleted',
+      409,
+      'INVOICE_HAS_ACTIVE_REMINDERS'
+    );
   }
 
   await prisma.invoice.delete({

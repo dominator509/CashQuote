@@ -1,8 +1,11 @@
-import { getJwtSecret } from '../../server/src/config/env';
+import { getCorsOrigins, getJwtSecret, getPilotAccessCode } from '../../server/src/config/env';
 import { requireBusinessId, requireBusinessOwner } from '../../server/src/middlewares/tenant';
 import { generateLineItemsWithFallback } from '../../server/src/services/ai/generation.service';
 import { OpenAiAdapter } from '../../server/src/services/ai/openai.adapter';
-import { createInvoicePayment } from '../../server/src/services/billing/payment.service';
+import {
+  createInvoicePayment,
+  deleteInvoicePayment,
+} from '../../server/src/services/billing/payment.service';
 import {
   createReminder,
   sendReminder,
@@ -45,6 +48,54 @@ describe('Production MVP security and workflow seams', () => {
       expect(error).toMatchObject({
         statusCode: 500,
         message: 'JWT_SECRET must be configured in production',
+      });
+    }
+  });
+
+  it('rejects the development JWT secret in production', () => {
+    process.env.JWT_SECRET = 'development-only-jwt-secret';
+    process.env.NODE_ENV = 'production';
+
+    try {
+      getJwtSecret();
+      throw new Error('Expected getJwtSecret to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        statusCode: 500,
+        code: 'CONFIG_WEAK_SECRET',
+        message: 'JWT_SECRET must not use the development default in production',
+      });
+    }
+  });
+
+  it('rejects weak pilot access codes in production', () => {
+    process.env.PILOT_ACCESS_CODE = 'pilot-code';
+    process.env.NODE_ENV = 'production';
+
+    try {
+      getPilotAccessCode();
+      throw new Error('Expected getPilotAccessCode to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        statusCode: 500,
+        code: 'CONFIG_WEAK_ACCESS_CODE',
+        message: 'PILOT_ACCESS_CODE must be a private, non-default value in production',
+      });
+    }
+  });
+
+  it('rejects wildcard CORS origins in production', () => {
+    process.env.CORS_ORIGIN = '*';
+    process.env.NODE_ENV = 'production';
+
+    try {
+      getCorsOrigins();
+      throw new Error('Expected getCorsOrigins to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        statusCode: 500,
+        code: 'CONFIG_INVALID_ORIGIN',
+        message: 'CORS_ORIGIN must not use a wildcard in production',
       });
     }
   });
@@ -117,6 +168,32 @@ describe('Production MVP security and workflow seams', () => {
     await expect(requireBusinessId(req as never, {} as never, jest.fn())).rejects.toMatchObject({
       statusCode: 403,
     });
+  });
+
+  it('rejects blank tenant headers before querying membership', async () => {
+    const req = {
+      headers: { 'x-business-id': '   ' },
+      user: { id: 'user-1' },
+    };
+
+    await expect(requireBusinessId(req as never, {} as never, jest.fn())).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'TENANT_REQUIRED',
+    });
+    expect(prisma.businessMember.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicated tenant headers before querying membership', async () => {
+    const req = {
+      headers: { 'x-business-id': ['biz-1', 'biz-2'] },
+      user: { id: 'user-1' },
+    };
+
+    await expect(requireBusinessId(req as never, {} as never, jest.fn())).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'TENANT_REQUIRED',
+    });
+    expect(prisma.businessMember.findUnique).not.toHaveBeenCalled();
   });
 
   it('falls back to mock AI output when OpenAI fails', async () => {
@@ -205,14 +282,51 @@ describe('Production MVP security and workflow seams', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it('rejects future-dated payments before writing invoice state', async () => {
+    await expect(
+      createInvoicePayment('inv-1', 'biz-1', 'user-1', {
+        amount: 100,
+        method: 'manual',
+        paidAt: '2099-01-01T00:00:00.000Z',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'PAYMENT_DATE_IN_FUTURE',
+      message: 'Payment date cannot be in the future',
+    });
+
+    expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects deleting payments from a void invoice', async () => {
+    (prisma.invoice.findFirst as jest.Mock).mockResolvedValue({
+      id: 'inv-1',
+      status: 'void',
+      total: 1000,
+      payments: [{ id: 'pay-1', amount: 1000 }],
+    });
+
+    await expect(deleteInvoicePayment('inv-1', 'pay-1', 'biz-1', 'user-1')).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Cannot delete payments for a void invoice',
+    });
+    expect(prisma.payment.delete).not.toHaveBeenCalled();
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+  });
+
   it('creates and sends reminders through the mock mail path', async () => {
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue({ id: 'quote-1' });
     (prisma.reminder.create as jest.Mock).mockResolvedValue({ id: 'rem-1', status: 'pending' });
-    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
-      id: 'rem-1',
-      entityId: 'quote-1',
-      entityType: 'quote',
-    });
+    (prisma.reminder.findFirst as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'rem-1',
+        entityId: 'quote-1',
+        entityType: 'quote',
+        scheduledAt: new Date().toISOString(),
+      });
     (prisma.reminder.update as jest.Mock).mockResolvedValue({ id: 'rem-1', status: 'sent' });
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -224,6 +338,45 @@ describe('Production MVP security and workflow seams', () => {
     const sent = await sendReminder('biz-1', 'user-1', reminder.id);
 
     expect(sent.status).toBe('sent');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects duplicate active reminders for the same entity', async () => {
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue({ id: 'quote-1' });
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-existing',
+      status: 'pending',
+    });
+
+    await expect(
+      createReminder('biz-1', 'user-1', {
+        entityType: 'quote',
+        entityId: 'quote-1',
+        scheduledAt: new Date().toISOString(),
+      })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ACTIVE_REMINDER_EXISTS',
+    });
+    expect(prisma.reminder.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects backdated reminders before reading or writing reminder state', async () => {
+    await expect(
+      createReminder('biz-1', 'user-1', {
+        entityType: 'quote',
+        entityId: 'quote-1',
+        scheduledAt: '2000-01-01T00:00:00.000Z',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'REMINDER_DATE_IN_PAST',
+      message: 'Reminder date cannot be in the past',
+    });
+
+    expect(prisma.quote.findFirst).not.toHaveBeenCalled();
+    expect(prisma.reminder.findFirst).not.toHaveBeenCalled();
+    expect(prisma.reminder.create).not.toHaveBeenCalled();
   });
 
   it('fails reminder send in production when email is not configured', async () => {
@@ -231,17 +384,76 @@ describe('Production MVP security and workflow seams', () => {
     delete process.env.SMTP_URL;
     delete process.env.SMTP_FROM;
     delete process.env.ALLOW_MOCK_EMAIL;
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue({ id: 'quote-1' });
     (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
       id: 'rem-prod',
       status: 'pending',
       entityId: 'quote-1',
       entityType: 'quote',
+      scheduledAt: new Date().toISOString(),
     });
 
     await expect(sendReminder('biz-1', 'user-1', 'rem-prod')).rejects.toMatchObject({
       statusCode: 503,
       code: 'EMAIL_NOT_CONFIGURED',
     });
+  });
+
+  it('fails reminder send when SMTP config is partial even if mock email is allowed', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_URL = 'smtp://localhost:1025';
+    delete process.env.SMTP_FROM;
+    process.env.ALLOW_MOCK_EMAIL = 'true';
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue({ id: 'quote-1' });
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-partial',
+      status: 'pending',
+      entityId: 'quote-1',
+      entityType: 'quote',
+      scheduledAt: new Date().toISOString(),
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-partial')).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'EMAIL_NOT_CONFIGURED',
+    });
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
+  });
+
+  it('prevents sending a reminder when its target entity no longer exists', async () => {
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-orphan',
+      status: 'pending',
+      entityId: 'quote-missing',
+      entityType: 'quote',
+      scheduledAt: new Date().toISOString(),
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-orphan')).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Quote not found',
+    });
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
+  });
+
+  it('prevents sending a reminder before its scheduled time', async () => {
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-future',
+      status: 'pending',
+      entityId: 'quote-1',
+      entityType: 'quote',
+      scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-future')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'REMINDER_NOT_DUE',
+      message: 'Reminder is not scheduled to send yet',
+    });
+
+    expect(prisma.quote.findFirst).not.toHaveBeenCalled();
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
   });
 
   it('prevents sending a reminder that is already sent', async () => {
@@ -281,6 +493,25 @@ describe('Production MVP security and workflow seams', () => {
     await expect(resolveReminder('biz-1', 'user-1', 'rem-4')).rejects.toMatchObject({
       statusCode: 409,
       message: 'Reminder is already resolved',
+    });
+  });
+
+  it('updates reminder resolution and activity log atomically', async () => {
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-5',
+      status: 'sent',
+    });
+    (prisma.reminder.update as jest.Mock).mockResolvedValue({ id: 'rem-5', status: 'resolved' });
+
+    const resolved = await resolveReminder('biz-1', 'user-1', 'rem-5');
+
+    expect(resolved.status).toBe('resolved');
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'reminder_resolve',
+        entityId: 'rem-5',
+      }),
     });
   });
 }); 

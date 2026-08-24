@@ -1,7 +1,7 @@
 import { prisma } from 'db';
 
 export const getLostCashInsights = async (businessId: string) => {
-  // 1. Find accepted quotes (heuristic: no associated activity log converting them yet)
+  // 1. Find accepted quotes that do not have an invoice conversion link.
   const acceptedQuotes = await prisma.quote.findMany({
     where: {
       businessId,
@@ -10,15 +10,28 @@ export const getLostCashInsights = async (businessId: string) => {
     include: { client: true }
   });
 
-  const convertedLogIds = await prisma.activityLog.findMany({
-    where: {
-      businessId,
-      action: 'convert_quote_to_invoice',
-      entityId: { in: acceptedQuotes.map((quote) => quote.id) }
-    }
-  }).then((logs) => new Set(logs.map((log) => log.entityId)));
+  const acceptedQuoteIds = acceptedQuotes.map((quote) => quote.id);
+  const convertedQuoteIds =
+    acceptedQuoteIds.length === 0
+      ? new Set<string>()
+      : await prisma.invoice
+          .findMany({
+            where: {
+              businessId,
+              sourceQuoteId: { in: acceptedQuoteIds },
+            },
+            select: { sourceQuoteId: true },
+          })
+          .then(
+            (invoices) =>
+              new Set(
+                invoices
+                  .map((invoice) => invoice.sourceQuoteId)
+                  .filter((sourceQuoteId): sourceQuoteId is string => Boolean(sourceQuoteId))
+              )
+          );
 
-  const unconvertedQuotes = acceptedQuotes.filter((quote) => !convertedLogIds.has(quote.id));
+  const unconvertedQuotes = acceptedQuotes.filter((quote) => !convertedQuoteIds.has(quote.id));
 
   // 2. Find overdue unpaid invoices
   const now = new Date();

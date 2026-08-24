@@ -1,4 +1,5 @@
 import { prisma } from 'db';
+import { logger } from '../logger/logger.service';
 
 interface ActivityInput {
   businessId: string;
@@ -17,16 +18,23 @@ export const logActivity = async ({
   entityType,
   details,
 }: ActivityInput): Promise<void> => {
-  await prisma.activityLog.create({
-    data: {
-      businessId,
-      action,
-      userId,
-      entityId,
-      entityType,
-      details,
-    },
-  });
+  try {
+    await prisma.activityLog.create({
+      data: {
+        businessId,
+        action,
+        userId,
+        entityId,
+        entityType,
+        details,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      { err: error, businessId, userId, action, entityId, entityType },
+      'Failed to write activity log'
+    );
+  }
 };
 
 export const listActivityLogs = async (
@@ -36,12 +44,12 @@ export const listActivityLogs = async (
   const take = Math.min(Math.max(input.limit, 1), 100);
   const logs = await prisma.activityLog.findMany({
     where: { businessId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: take + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
 
-  const nextCursor = logs.length > take ? logs[take].id : null;
+  const nextCursor = logs.length > take ? logs[take - 1].id : null;
   return {
     items: logs.slice(0, take),
     nextCursor,

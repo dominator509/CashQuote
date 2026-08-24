@@ -22,7 +22,7 @@ This launch target is not full public SaaS v1. Payments remain internal records 
 - `LOG_LEVEL=info`
 - `TRUST_PROXY=true` when running behind a proxy/load balancer
 
-`ALLOW_DEMO_LOGIN=true` should only be used for temporary staging demos. `ALLOW_MOCK_EMAIL=true` should only be used for non-production or emergency pilot dry runs.
+`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` should only be used for temporary staging demos. `ALLOW_MOCK_EMAIL=true` should only be used for non-production or emergency pilot dry runs.
 
 ## Validation Gate
 

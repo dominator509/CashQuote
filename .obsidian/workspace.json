@@ -177,5 +177,19 @@
     }
   },
   "active": "5884f88f37ddc2f5",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "tests/unit/line_item_schema_integrity.test.ts",
+    "tests/unit/client_schema_integrity.test.ts",
+    "tests/unit/payment_schema_integrity.test.ts",
+    "tests/unit/activity_logging_resilience.test.ts",
+    "tests/unit/financial_line_item_integrity.test.ts",
+    "tests/unit/quote_update_integrity.test.ts",
+    "tests/unit/invoice_delete_integrity.test.ts",
+    "tests/unit/quote_delete_integrity.test.ts",
+    "tests/unit/client_delete_integrity.test.ts",
+    "tests/unit/financial_discount_integrity.test.ts",
+    "tests/unit/activity_pagination.test.ts",
+    "test-results/private_pilot-private-pilo-519ba-eaches-invoice-print-export-chromium/error-context.md",
+    "HARDENING_100_PASS_LOG.md"
+  ]
 }

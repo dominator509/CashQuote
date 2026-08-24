@@ -19,7 +19,7 @@ export default defineConfig({
         JWT_SECRET: process.env.JWT_SECRET || 'e2e-jwt-secret',
         APP_ORIGIN: 'http://127.0.0.1:5173',
         CORS_ORIGIN: 'http://127.0.0.1:5173',
-        PILOT_ACCESS_CODE: process.env.PILOT_ACCESS_CODE || 'e2e-pilot-code',
+        PILOT_ACCESS_CODE: process.env.PILOT_ACCESS_CODE || 'e2e-private-pilot-code-12345',
         PILOT_EMAIL_ALLOWLIST: process.env.PILOT_EMAIL_ALLOWLIST || '',
         ALLOW_MOCK_EMAIL: 'true',
       },

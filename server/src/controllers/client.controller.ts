@@ -89,10 +89,19 @@ export const deleteClient = async (req: Request, res: Response) => {
 
   const client = await prisma.client.findFirst({
     where: { id, businessId },
+    include: { _count: { select: { quotes: true, invoices: true } } },
   });
 
   if (!client) {
     throw new AppError('Client not found', 404);
+  }
+
+  if (client._count.quotes > 0 || client._count.invoices > 0) {
+    throw new AppError(
+      'Client has financial records and cannot be deleted',
+      409,
+      'CLIENT_HAS_FINANCIAL_RECORDS'
+    );
   }
 
   await prisma.client.delete({

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import {
   getJwtSecret,
+  getPilotAccessCode,
   getPilotEmailAllowlist,
   isDemoLoginAllowed,
 } from '../config/env';
@@ -47,14 +48,11 @@ const ensureOwnerMembership = async (email: string, businessName: string) => {
     return { user, business: existingMembership.business };
   }
 
-  let business = await prisma.business.findFirst({ where: { name: businessName } });
-  if (!business) {
-    business = await prisma.business.create({
-      data: {
-        name: businessName,
-      },
-    });
-  }
+  const business = await prisma.business.create({
+    data: {
+      name: businessName,
+    },
+  });
 
   await prisma.businessMember.upsert({
     where: {
@@ -100,11 +98,7 @@ export const demoLogin = async (_req: Request, res: Response) => {
 
 export const pilotLogin = async (req: Request, res: Response) => {
   const data = pilotLoginSchema.parse(req.body);
-  const configuredAccessCode = process.env.PILOT_ACCESS_CODE;
-
-  if (!configuredAccessCode) {
-    throw new AppError('Pilot access code is not configured', 500, 'CONFIG_MISSING');
-  }
+  const configuredAccessCode = getPilotAccessCode();
 
   if (data.accessCode !== configuredAccessCode) {
     throw new AppError('Invalid pilot access code', 401, 'INVALID_ACCESS_CODE');

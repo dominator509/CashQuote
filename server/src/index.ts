@@ -2,7 +2,6 @@ import 'dotenv/config';
 import 'express-async-errors';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import path from 'path';
 import { prisma } from 'db';
 import { demoLogin, logout, me, pilotLogin } from './controllers/auth.controller';
 import { healthz, readyz } from './controllers/health.controller';
@@ -12,6 +11,7 @@ import { errorHandler } from './middlewares/error';
 import { aiRateLimit, authRateLimit, corsMiddleware, securityHeaders } from './middlewares/security';
 import { requestLogger } from './middlewares/request-logger';
 import { assertProductionReady, isProduction } from './config/env';
+import { getStaticClientBuild } from './config/static-client';
 import { logger } from './services/logger/logger.service';
 
 import clientRoutes from './routes/client.routes';
@@ -57,25 +57,18 @@ apiRouter.use('/radar', radarRoutes);
 apiRouter.use('/reminders', reminderRoutes);
 apiRouter.use('/activity-logs', activityRoutes);
 
-apiRouter.get('/test-protected', (req, res) => {
-  res.json({
-    message: 'Access granted',
-    userId: req.user?.id,
-    businessId: req.business?.id,
-  });
-});
-
 app.use('/api', apiRouter);
 
 if (isProduction()) {
-  const clientDist = path.resolve(process.cwd(), 'client/dist');
+  const { clientDist, clientIndex } = getStaticClientBuild();
+
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) {
       next();
       return;
     }
-    res.sendFile(path.join(clientDist, 'index.html'));
+    res.sendFile(clientIndex);
   });
 }
 
