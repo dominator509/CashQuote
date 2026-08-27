@@ -54,7 +54,7 @@ CashQuote is a private-pilot Production MVP for AI-assisted quote, invoice, paym
 - Every tenant-owned model/query must be scoped by `businessId`; membership is represented through `BusinessMember`.
 - Production auth must fail closed without required secrets. Demo login is local/staging only unless explicitly enabled.
 - Private pilot login uses `PILOT_ACCESS_CODE` and optional `PILOT_EMAIL_ALLOWLIST`.
-- SMTP reminder email requires `SMTP_URL` and `SMTP_FROM` in production unless mock email is explicitly allowed outside production.
+- SMTP reminder email requires `SMTP_URL` and `SMTP_FROM` in production; mock email is for non-production only.
 - OpenAI is optional; missing/failing live AI should degrade through the mock adapter with telemetry.
 - Payment processing is not integrated with Stripe or any real processor.
 

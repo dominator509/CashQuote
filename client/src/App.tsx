@@ -39,6 +39,10 @@ interface Invoice {
   client?: Client;
 }
 
+interface RadarInvoice extends Invoice {
+  outstanding: number;
+}
+
 interface Payment {
   id: string;
   amount: number;
@@ -56,7 +60,7 @@ interface Reminder {
 
 interface Radar {
   unconvertedQuotes: Quote[];
-  overdueInvoices: Invoice[];
+  overdueInvoices: RadarInvoice[];
   totalAtRisk: number;
 }
 
@@ -300,10 +304,12 @@ export function App() {
   };
 
   const createReminder = async (entityType: 'quote' | 'invoice', entityId: string) => {
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    // This MVP exposes a manual Send action rather than a background scheduler.
+    // Create reminders due now so the UI and server enforce the same contract.
+    const scheduledAt = new Date().toISOString();
     await request<Reminder>('/api/reminders', {
       method: 'POST',
-      body: JSON.stringify({ entityType, entityId, scheduledAt: tomorrow }),
+      body: JSON.stringify({ entityType, entityId, scheduledAt }),
     });
     setMessage('Reminder scheduled.');
     await refresh();
@@ -480,9 +486,23 @@ export function App() {
           <h2>Reminders</h2>
           {reminders.map((reminder) => (
             <article key={reminder.id} className="row">
-              <span>{reminder.entityType} {reminder.status}</span>
-              <button type="button" onClick={() => sendReminder(reminder.id)}>Send</button>
-              <button type="button" onClick={() => resolveReminder(reminder.id)}>Resolve</button>
+              <span>
+                {reminder.entityType} {reminder.status} ({new Date(reminder.scheduledAt).toLocaleString()})
+              </span>
+              <button
+                type="button"
+                onClick={() => sendReminder(reminder.id)}
+                disabled={reminder.status !== 'pending'}
+              >
+                Send
+              </button>
+              <button
+                type="button"
+                onClick={() => resolveReminder(reminder.id)}
+                disabled={reminder.status === 'sending' || reminder.status === 'resolved'}
+              >
+                Resolve
+              </button>
             </article>
           ))}
         </section>

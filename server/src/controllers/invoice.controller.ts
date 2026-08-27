@@ -8,6 +8,8 @@ import {
 } from '../services/billing/math.service';
 import { createInvoiceSchema, updateInvoiceSchema } from 'shared';
 import { logActivity } from '../services/activity/activity.service';
+import { runSerializableTransaction } from '../services/billing/transaction.service';
+import { ACTIVE_REMINDER_STATUSES } from '../services/reminders/reminder-status';
 
 const deriveInvoiceStatus = (
   requestedStatus: 'unpaid' | 'paid' | 'void' | undefined,
@@ -104,20 +106,20 @@ export const updateInvoice = async (req: Request, res: Response) => {
   const { id } = req.params;
   const data = updateInvoiceSchema.parse(req.body);
 
-  const existingInvoice = await prisma.invoice.findFirst({
-    where: { id, businessId },
-    include: { lineItems: true, payments: true },
-  });
+  const result = await runSerializableTransaction(async (tx) => {
+    const existingInvoice = await tx.invoice.findFirst({
+      where: { id, businessId },
+      include: { lineItems: true, payments: true },
+    });
 
-  if (!existingInvoice) {
-    throw new AppError('Invoice not found', 404);
-  }
+    if (!existingInvoice) {
+      throw new AppError('Invoice not found', 404);
+    }
 
-  if (existingInvoice.status === 'void') {
-    throw new AppError('Void invoices cannot be updated', 409, 'INVOICE_IS_VOID');
-  }
+    if (existingInvoice.status === 'void') {
+      throw new AppError('Void invoices cannot be updated', 409, 'INVOICE_IS_VOID');
+    }
 
-  const result = await prisma.$transaction(async (tx) => {
     // 1. Process Line Items if provided
     let currentLineItems = existingInvoice.lineItems;
     if (data.lineItems) {
@@ -196,49 +198,51 @@ export const deleteInvoice = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const { id } = req.params;
 
-  const invoice = await prisma.invoice.findFirst({
-    where: { id, businessId },
-    include: { _count: { select: { payments: true } } },
-  });
+  await runSerializableTransaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({
+      where: { id, businessId },
+      include: { _count: { select: { payments: true } } },
+    });
 
-  if (!invoice) {
-    throw new AppError('Invoice not found', 404);
-  }
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404);
+    }
 
-  if (invoice._count.payments > 0) {
-    throw new AppError(
-      'Invoice has recorded payments and cannot be deleted',
-      409,
-      'INVOICE_HAS_PAYMENTS'
-    );
-  }
+    if (invoice._count.payments > 0) {
+      throw new AppError(
+        'Invoice has recorded payments and cannot be deleted',
+        409,
+        'INVOICE_HAS_PAYMENTS'
+      );
+    }
 
-  const activeReminder = await prisma.reminder.findFirst({
-    where: {
-      businessId,
-      entityId: id,
-      entityType: 'invoice',
-      status: { in: ['pending', 'sent'] },
-    },
-  });
-  if (activeReminder) {
-    throw new AppError(
-      'Invoice has active reminders and cannot be deleted',
-      409,
-      'INVOICE_HAS_ACTIVE_REMINDERS'
-    );
-  }
+    const activeReminder = await tx.reminder.findFirst({
+      where: {
+        businessId,
+        entityId: id,
+        entityType: 'invoice',
+        status: { in: [...ACTIVE_REMINDER_STATUSES] },
+      },
+    });
+    if (activeReminder) {
+      throw new AppError(
+        'Invoice has active reminders and cannot be deleted',
+        409,
+        'INVOICE_HAS_ACTIVE_REMINDERS'
+      );
+    }
 
-  await prisma.invoice.delete({
-    where: { id },
-  });
+    await tx.invoice.delete({ where: { id } });
 
-  await logActivity({
-    businessId,
-    userId: req.user?.id,
-    action: 'invoice_delete',
-    entityId: id,
-    entityType: 'invoice',
+    await tx.activityLog.create({
+      data: {
+        businessId,
+        userId: req.user?.id,
+        action: 'invoice_delete',
+        entityId: id,
+        entityType: 'invoice',
+      },
+    });
   });
 
   res.status(204).send();

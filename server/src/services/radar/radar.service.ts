@@ -35,20 +35,31 @@ export const getLostCashInsights = async (businessId: string) => {
 
   // 2. Find overdue unpaid invoices
   const now = new Date();
-  const overdueInvoices = await prisma.invoice.findMany({
+  const overdueInvoiceRecords = await prisma.invoice.findMany({
     where: {
       businessId,
       status: 'unpaid',
       dueDate: { lt: now }
     },
-    include: { client: true }
+    include: {
+      client: true,
+      payments: { select: { amount: true } },
+    }
   });
+
+  const overdueInvoices = overdueInvoiceRecords.map(({ payments, ...invoice }) => ({
+    ...invoice,
+    outstanding: Math.max(
+      invoice.total - (payments ?? []).reduce((sum, payment) => sum + payment.amount, 0),
+      0
+    ),
+  }));
 
   return {
     unconvertedQuotes,
     overdueInvoices,
     totalAtRisk:
       unconvertedQuotes.reduce((acc, q) => acc + q.total, 0) +
-      overdueInvoices.reduce((acc, i) => acc + i.total, 0)
+      overdueInvoices.reduce((acc, i) => acc + i.outstanding, 0)
   };
 };

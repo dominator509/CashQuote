@@ -1,5 +1,6 @@
 import { prisma } from 'db';
 import { AppError } from '../../middlewares/error';
+import { runSerializableTransaction } from './transaction.service';
 
 export const listInvoicePayments = async (invoiceId: string, businessId: string) => {
   const invoice = await prisma.invoice.findFirst({
@@ -22,7 +23,7 @@ export const createInvoicePayment = async (
   userId: string | undefined,
   input: { amount: number; method: string; paidAt?: string }
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return runSerializableTransaction(async (tx) => {
     const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
     if (paidAt.getTime() > Date.now()) {
       throw new AppError('Payment date cannot be in the future', 400, 'PAYMENT_DATE_IN_FUTURE');
@@ -85,7 +86,7 @@ export const deleteInvoicePayment = async (
   businessId: string,
   userId?: string
 ) => {
-  await prisma.$transaction(async (tx) => {
+  await runSerializableTransaction(async (tx) => {
     const invoice = await tx.invoice.findFirst({
       where: { id: invoiceId, businessId },
       include: { payments: true },

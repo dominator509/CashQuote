@@ -197,7 +197,7 @@ describe('invoice financial state hardening', () => {
       message: 'Void invoices cannot be updated',
     });
 
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
     expect(prisma.invoiceLineItem.deleteMany).not.toHaveBeenCalled();
     expect(prisma.invoice.update).not.toHaveBeenCalled();
     expect(prisma.activityLog.create).not.toHaveBeenCalled();

@@ -29,6 +29,8 @@ describe('private pilot production hardening', () => {
       CORS_ORIGIN: 'http://localhost:5173',
       PILOT_ACCESS_CODE: 'private-pilot-code-12345',
       PILOT_EMAIL_ALLOWLIST: 'pilot@example.com',
+      SMTP_URL: 'smtp://localhost:1025',
+      SMTP_FROM: 'billing@example.com',
     };
     (prisma.activityLog.create as jest.Mock).mockResolvedValue({ id: 'log-1' });
   });
@@ -323,6 +325,19 @@ describe('private pilot production hardening', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ready');
+  });
+
+  it('fails readiness when production SMTP is not configured', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SMTP_URL;
+    delete process.env.SMTP_FROM;
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('CONFIG_MISSING');
+    expect(response.body.error).toContain('SMTP_URL');
+    expect(response.body.error).toContain('SMTP_FROM');
   });
 
   it('rate limits repeated auth attempts', async () => {

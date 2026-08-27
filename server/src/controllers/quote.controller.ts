@@ -9,6 +9,7 @@ import {
 import { createQuoteSchema, updateQuoteSchema } from 'shared';
 import { convertQuoteToInvoice as convertService } from '../services/billing/conversion.service';
 import { logActivity } from '../services/activity/activity.service';
+import { ACTIVE_REMINDER_STATUSES } from '../services/reminders/reminder-status';
 
 export const getQuotes = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -207,7 +208,7 @@ export const deleteQuote = async (req: Request, res: Response) => {
       businessId,
       entityId: id,
       entityType: 'quote',
-      status: { in: ['pending', 'sent'] },
+      status: { in: [...ACTIVE_REMINDER_STATUSES] },
     },
   });
   if (activeReminder) {

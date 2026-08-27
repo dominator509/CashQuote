@@ -16,6 +16,8 @@ export interface ProductionReadinessConfig {
   jwtSecret: string;
   databaseUrl: string;
   pilotAccessCode: string;
+  smtpUrl: string;
+  smtpFrom: string;
 }
 
 const isTruthy = (value: string | undefined): boolean => value === 'true' || value === '1';
@@ -108,7 +110,14 @@ export const getPilotAccessCode = (): string => {
 };
 
 export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
-  const missing = ['DATABASE_URL', 'JWT_SECRET', 'APP_ORIGIN', 'PILOT_ACCESS_CODE'].filter(
+  const missing = [
+    'DATABASE_URL',
+    'JWT_SECRET',
+    'APP_ORIGIN',
+    'PILOT_ACCESS_CODE',
+    'SMTP_URL',
+    'SMTP_FROM',
+  ].filter(
     (key) => !process.env[key]
   );
 
@@ -130,6 +139,8 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
     jwtSecret,
     databaseUrl: process.env.DATABASE_URL!,
     pilotAccessCode,
+    smtpUrl: process.env.SMTP_URL!,
+    smtpFrom: process.env.SMTP_FROM!,
   };
 };
 

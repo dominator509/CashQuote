@@ -13,7 +13,7 @@ export class SmtpMailService implements IMailService {
     const transporter = nodemailer.createTransport(smtpUrl);
     await transporter.sendMail({
       from,
-      to: from,
+      to: input.to,
       subject: buildReminderSubject(input),
       text: `Reminder for ${input.entityType} ${input.entityId} in business ${input.businessId}.`,
     });

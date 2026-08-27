@@ -166,7 +166,7 @@ model Reminder {
   businessId  String
   entityId    String // ID of Quote or Invoice
   entityType  String // "quote" or "invoice"
-  status      String   @default("pending") // pending, sent, resolved
+  status      String   @default("pending") // pending, sending, sent, resolved
   scheduledAt DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

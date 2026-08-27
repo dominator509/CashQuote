@@ -23,7 +23,14 @@ describe('Phase 2: Data Flow & State Tracking Validation', () => {
     ];
 
     const mockInvoices = [
-      { id: 'i1', businessId, status: 'unpaid', total: 200, dueDate: new Date(Date.now() - 100000) }
+      {
+        id: 'i1',
+        businessId,
+        status: 'unpaid',
+        total: 200,
+        dueDate: new Date(Date.now() - 100000),
+        payments: [{ amount: 150 }],
+      }
     ];
 
     (prisma.quote.findMany as jest.Mock).mockResolvedValue(mockQuotes);
@@ -40,9 +47,10 @@ describe('Phase 2: Data Flow & State Tracking Validation', () => {
 
     expect(result.overdueInvoices).toHaveLength(1);
     expect(result.overdueInvoices[0].id).toBe('i1');
+    expect(result.overdueInvoices[0].outstanding).toBe(50);
 
     // Validate total reduction
-    expect(result.totalAtRisk).toBe(500 + 200); // q2.total + i1.total
+    expect(result.totalAtRisk).toBe(500 + 50); // q2.total + i1.outstanding
     expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(1, {
       where: {
         businessId,

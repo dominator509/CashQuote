@@ -9,6 +9,7 @@ jest.mock('db', () => ({
     },
     reminder: { findFirst: jest.fn() },
     activityLog: { create: jest.fn() },
+    $transaction: jest.fn(async (cb) => cb(prisma)),
   },
 }));
 
@@ -79,7 +80,7 @@ describe('invoice deletion payment integrity', () => {
         businessId: 'biz-1',
         entityId: 'inv-1',
         entityType: 'invoice',
-        status: { in: ['pending', 'sent'] },
+        status: { in: ['pending', 'sending', 'sent'] },
       },
     });
     expect(prisma.invoice.delete).not.toHaveBeenCalled();

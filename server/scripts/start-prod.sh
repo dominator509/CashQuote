@@ -1,4 +1,6 @@
 #!/bin/sh
+set -eu
+
 cd "$(dirname "$0")/../.."
 export NODE_ENV=production
 echo "Deploying database migrations..."

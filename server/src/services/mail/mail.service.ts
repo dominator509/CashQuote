@@ -1,4 +1,5 @@
 export interface ReminderMailInput {
+  to: string;
   businessId: string;
   entityId: string;
   entityType: 'quote' | 'invoice';

@@ -79,7 +79,7 @@ describe('quote deletion financial integrity', () => {
         businessId: 'biz-1',
         entityId: 'quote-1',
         entityType: 'quote',
-        status: { in: ['pending', 'sent'] },
+        status: { in: ['pending', 'sending', 'sent'] },
       },
     });
     expect(prisma.quote.delete).not.toHaveBeenCalled();

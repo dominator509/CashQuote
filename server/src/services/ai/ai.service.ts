@@ -1,11 +1,9 @@
+import { lineItemSchema } from 'shared';
 import { z } from 'zod';
 
-export const aiGeneratedLineItemSchema = z.object({
-  description: z.string(),
-  quantity: z.number().int().min(1),
-  price: z.number().int().min(0),
-  category: z.string().optional().nullable(),
-});
+// AI output is consumed by quote/invoice creation, so it must use the same
+// bounds as persisted line items. The optional client-only id is excluded.
+export const aiGeneratedLineItemSchema = lineItemSchema.omit({ id: true });
 
 export type AIGeneratedLineItem = z.infer<typeof aiGeneratedLineItemSchema>;
 
