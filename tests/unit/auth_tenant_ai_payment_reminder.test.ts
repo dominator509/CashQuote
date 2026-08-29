@@ -71,6 +71,7 @@ describe('Production MVP security and workflow seams', () => {
 
   it('rejects whitespace-only required production configuration', () => {
     process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_MOCK_EMAIL;
     process.env.DATABASE_URL = '   ';
 
     expect(() => getProductionReadinessConfig()).toThrow(
