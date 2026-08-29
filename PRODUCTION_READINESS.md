@@ -9,20 +9,20 @@ This launch target is not full public SaaS v1. Payments remain internal records 
 ## Required Production Environment
 
 - `NODE_ENV=production`
-- `PORT`
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `APP_ORIGIN`
-- `CORS_ORIGIN`
 - `PILOT_ACCESS_CODE`
-- `PILOT_EMAIL_ALLOWLIST`
 - `SMTP_URL`
 - `SMTP_FROM`
+- `PORT` (optional; defaults to `3000`)
+- `CORS_ORIGIN` (optional; defaults to `APP_ORIGIN`)
+- `PILOT_EMAIL_ALLOWLIST` (optional; recommended for a private pilot)
 - `OPENAI_API_KEY` when live AI is desired
-- `LOG_LEVEL=info`
-- `TRUST_PROXY=true` when running behind a proxy/load balancer
+- `LOG_LEVEL` (optional; defaults to the logger's configured level)
+- `TRUST_PROXY=true` only when the service is behind exactly one trusted proxy/load balancer hop
 
-`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` and `ALLOW_MOCK_EMAIL=true` should only be used outside production. Production startup and `/readyz` require usable SMTP configuration.
+`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` is permitted only for an explicitly controlled private pilot; `ALLOW_MOCK_EMAIL=true` is rejected in production. Leave `TRUST_PROXY` unset or `false` unless the deployment topology has exactly one trusted proxy hop. Production startup and `/readyz` require usable SMTP configuration.
 
 ## Validation Gate
 
@@ -32,7 +32,7 @@ Run the full local gate:
 npm run validate:prod
 ```
 
-The gate runs lint, typecheck, build, unit tests, integration tests, security tests, high-severity npm audit, production smoke, and Playwright e2e.
+The gate runs lint, typecheck, build, Prisma migrations, unit tests, integration tests, security tests, the PostgreSQL concurrency smoke, high-severity npm audit, production smoke, and Playwright e2e.
 
 For a faster pre-commit check:
 
@@ -41,6 +41,7 @@ npm run typecheck
 npm run test:unit
 npm run test:integration
 npm run test:security
+npm run test:concurrency
 ```
 
 ## Production Start

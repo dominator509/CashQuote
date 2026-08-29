@@ -9,6 +9,7 @@ import {
 import { createQuoteSchema, updateQuoteSchema } from 'shared';
 import { convertQuoteToInvoice as convertService } from '../services/billing/conversion.service';
 import { logActivity } from '../services/activity/activity.service';
+import { runSerializableTransaction } from '../services/billing/transaction.service';
 import { ACTIVE_REMINDER_STATUSES } from '../services/reminders/reminder-status';
 
 export const getQuotes = async (req: Request, res: Response) => {
@@ -41,40 +42,42 @@ export const createQuote = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const data = createQuoteSchema.parse(req.body);
 
-  const client = await prisma.client.findFirst({
-    where: { id: data.clientId, businessId },
-  });
-
-  if (!client) {
-    throw new AppError('Client not found or belongs to another business', 404);
-  }
-
   const subtotal = calculateLineItemsSubtotal(data.lineItems);
   if (!isDiscountWithinSubtotal(subtotal, data.discountAmount)) {
     throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
   }
   const totals = calculateTotals(subtotal, data.taxRatePercent, data.discountAmount);
 
-  const quote = await prisma.quote.create({
-    data: {
-      businessId,
-      clientId: data.clientId,
-      status: data.status || 'draft',
-      subtotal: totals.subtotal,
-      tax: totals.tax,
-      discount: totals.discount,
-      total: totals.total,
-      lineItems: {
-        create: data.lineItems.map((item) => ({
-          businessId,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          category: item.category,
-        })),
+  const quote = await runSerializableTransaction(async (tx) => {
+    const client = await tx.client.findFirst({
+      where: { id: data.clientId, businessId },
+    });
+
+    if (!client) {
+      throw new AppError('Client not found or belongs to another business', 404);
+    }
+
+    return tx.quote.create({
+      data: {
+        businessId,
+        clientId: data.clientId,
+        status: data.status || 'draft',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        lineItems: {
+          create: data.lineItems.map((item) => ({
+            businessId,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            category: item.category,
+          })),
+        },
       },
-    },
-    include: { lineItems: true, client: true },
+      include: { lineItems: true, client: true },
+    });
   });
 
   await logActivity({
@@ -93,24 +96,24 @@ export const updateQuote = async (req: Request, res: Response) => {
   const { id } = req.params;
   const data = updateQuoteSchema.parse(req.body);
 
-  const existingQuote = await prisma.quote.findFirst({
-    where: { id, businessId },
-    include: { lineItems: true, _count: { select: { sourceInvoices: true } } },
-  });
+  const result = await runSerializableTransaction(async (tx) => {
+    const existingQuote = await tx.quote.findFirst({
+      where: { id, businessId },
+      include: { lineItems: true, _count: { select: { sourceInvoices: true } } },
+    });
 
-  if (!existingQuote) {
-    throw new AppError('Quote not found', 404);
-  }
+    if (!existingQuote) {
+      throw new AppError('Quote not found', 404);
+    }
 
-  if ((existingQuote._count?.sourceInvoices ?? 0) > 0) {
-    throw new AppError(
-      'Quote has already been converted to an invoice and cannot be updated',
-      409,
-      'QUOTE_HAS_INVOICE'
-    );
-  }
+    if ((existingQuote._count?.sourceInvoices ?? 0) > 0) {
+      throw new AppError(
+        'Quote has already been converted to an invoice and cannot be updated',
+        409,
+        'QUOTE_HAS_INVOICE'
+      );
+    }
 
-  const result = await prisma.$transaction(async (tx) => {
     // 1. Process Line Items if provided
     let currentLineItems = existingQuote.lineItems;
     if (data.lineItems) {
@@ -186,41 +189,43 @@ export const deleteQuote = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const { id } = req.params;
 
-  const quote = await prisma.quote.findFirst({
-    where: { id, businessId },
-    include: { _count: { select: { sourceInvoices: true } } },
-  });
+  await runSerializableTransaction(async (tx) => {
+    const quote = await tx.quote.findFirst({
+      where: { id, businessId },
+      include: { _count: { select: { sourceInvoices: true } } },
+    });
 
-  if (!quote) {
-    throw new AppError('Quote not found', 404);
-  }
+    if (!quote) {
+      throw new AppError('Quote not found', 404);
+    }
 
-  if (quote._count.sourceInvoices > 0) {
-    throw new AppError(
-      'Quote has been converted to an invoice and cannot be deleted',
-      409,
-      'QUOTE_HAS_INVOICE'
-    );
-  }
+    if (quote._count.sourceInvoices > 0) {
+      throw new AppError(
+        'Quote has been converted to an invoice and cannot be deleted',
+        409,
+        'QUOTE_HAS_INVOICE'
+      );
+    }
 
-  const activeReminder = await prisma.reminder.findFirst({
-    where: {
-      businessId,
-      entityId: id,
-      entityType: 'quote',
-      status: { in: [...ACTIVE_REMINDER_STATUSES] },
-    },
-  });
-  if (activeReminder) {
-    throw new AppError(
-      'Quote has active reminders and cannot be deleted',
-      409,
-      'QUOTE_HAS_ACTIVE_REMINDERS'
-    );
-  }
+    const activeReminder = await tx.reminder.findFirst({
+      where: {
+        businessId,
+        entityId: id,
+        entityType: 'quote',
+        status: { in: [...ACTIVE_REMINDER_STATUSES] },
+      },
+    });
+    if (activeReminder) {
+      throw new AppError(
+        'Quote has active reminders and cannot be deleted',
+        409,
+        'QUOTE_HAS_ACTIVE_REMINDERS'
+      );
+    }
 
-  await prisma.quote.delete({
-    where: { id },
+    await tx.quote.delete({
+      where: { id },
+    });
   });
 
   await logActivity({

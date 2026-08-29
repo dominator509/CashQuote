@@ -8,6 +8,7 @@ jest.mock('db', () => ({
       findFirst: jest.fn(),
     },
     activityLog: { create: jest.fn() },
+    $transaction: jest.fn(async (callback) => callback(prisma)),
   },
 }));
 

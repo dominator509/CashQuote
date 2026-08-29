@@ -9,6 +9,7 @@ jest.mock('db', () => ({
     },
     reminder: { findFirst: jest.fn() },
     activityLog: { create: jest.fn() },
+    $transaction: jest.fn(async (cb) => cb(prisma)),
   },
 }));
 

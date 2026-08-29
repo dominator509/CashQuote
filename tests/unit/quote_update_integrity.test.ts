@@ -46,7 +46,10 @@ describe('quote update financial integrity', () => {
       message: 'Quote has already been converted to an invoice and cannot be updated',
     });
 
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { isolationLevel: 'Serializable' }
+    );
     expect(prisma.quoteLineItem.deleteMany).not.toHaveBeenCalled();
     expect(prisma.quote.update).not.toHaveBeenCalled();
     expect(prisma.activityLog.create).not.toHaveBeenCalled();

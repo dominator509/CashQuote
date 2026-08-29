@@ -36,6 +36,7 @@ CashQuote is a private-pilot Production MVP for AI-assisted quote, invoice, paym
 - Unit tests: `npm run test:unit`
 - Integration tests: `npm run test:integration`
 - Security tests: `npm run test:security`
+- PostgreSQL concurrency smoke: `npm run test:concurrency` (builds, applies migrations, and requires PostgreSQL)
 - E2E tests: `npm run test:e2e`
 - Full private-pilot gate: `npm run validate:prod`
 - Production start: `npm run start:prod`

@@ -1,5 +1,5 @@
-import { prisma } from 'db';
 import { AppError } from '../../middlewares/error';
+import { runSerializableTransaction } from './transaction.service';
 
 const isDuplicateConstraintError = (error: unknown): error is { code: string } => {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
@@ -7,7 +7,7 @@ const isDuplicateConstraintError = (error: unknown): error is { code: string } =
 
 export const convertQuoteToInvoice = async (quoteId: string, businessId: string) => {
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await runSerializableTransaction(async (tx) => {
       const quote = await tx.quote.findFirst({
         where: { id: quoteId, businessId },
         include: { lineItems: true },

@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
-import { IAIService, AIGeneratedLineItem, aiGeneratedLineItemSchema } from './ai.service';
+import { IAIService, AIGeneratedLineItem, aiGeneratedLineItemsSchema } from './ai.service';
 import { z } from 'zod';
 import { AppError } from '../../middlewares/error';
 import { logger } from '../logger/logger.service';
 
 const schema = z.object({
-  items: z.array(aiGeneratedLineItemSchema)
+  items: aiGeneratedLineItemsSchema,
 });
 
 export class OpenAiAdapter implements IAIService {

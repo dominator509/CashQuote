@@ -20,4 +20,4 @@ const server = spawnSync(process.execPath, ['server/dist/index.js'], {
   stdio: 'inherit',
 });
 
-process.exit(server.status || 0);
+process.exit(typeof server.status === 'number' ? server.status : 1);

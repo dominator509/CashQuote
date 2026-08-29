@@ -11,6 +11,18 @@ describe('client schema integrity', () => {
     expect(parsed.billingAddress).toBe('100 Main St');
   });
 
+  it('trims and validates client email addresses', () => {
+    const parsed = createClientSchema.parse({
+      name: 'Acme Services',
+      email: '  billing@example.com  ',
+    });
+
+    expect(parsed.email).toBe('billing@example.com');
+    expect(() =>
+      createClientSchema.parse({ name: 'Acme Services', email: 'not-an-email' })
+    ).toThrow();
+  });
+
   it('rejects blank client names after trimming', () => {
     expect(() => createClientSchema.parse({ name: '   ' })).toThrow();
   });

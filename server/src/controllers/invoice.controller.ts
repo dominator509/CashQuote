@@ -53,41 +53,43 @@ export const createInvoice = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const data = createInvoiceSchema.parse(req.body);
 
-  const client = await prisma.client.findFirst({
-    where: { id: data.clientId, businessId },
-  });
-
-  if (!client) {
-    throw new AppError('Client not found or belongs to another business', 404);
-  }
-
   const subtotal = calculateLineItemsSubtotal(data.lineItems);
   if (!isDiscountWithinSubtotal(subtotal, data.discountAmount)) {
     throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
   }
   const totals = calculateTotals(subtotal, data.taxRatePercent, data.discountAmount);
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      businessId,
-      clientId: data.clientId,
-      status: deriveInvoiceStatus(data.status, 0, totals.total),
-      subtotal: totals.subtotal,
-      tax: totals.tax,
-      discount: totals.discount,
-      total: totals.total,
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      lineItems: {
-        create: data.lineItems.map((item) => ({
-          businessId,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          category: item.category,
-        })),
+  const invoice = await runSerializableTransaction(async (tx) => {
+    const client = await tx.client.findFirst({
+      where: { id: data.clientId, businessId },
+    });
+
+    if (!client) {
+      throw new AppError('Client not found or belongs to another business', 404);
+    }
+
+    return tx.invoice.create({
+      data: {
+        businessId,
+        clientId: data.clientId,
+        status: deriveInvoiceStatus(data.status, 0, totals.total),
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        lineItems: {
+          create: data.lineItems.map((item) => ({
+            businessId,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            category: item.category,
+          })),
+        },
       },
-    },
-    include: { lineItems: true, client: true },
+      include: { lineItems: true, client: true },
+    });
   });
 
   await logActivity({

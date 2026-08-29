@@ -60,7 +60,7 @@ npm test
 npm run lint
 ```
 
-CI runs install, Prisma generate, migrations, lint, typecheck, build, unit/integration/security tests, high-severity npm audit, production smoke, and Playwright e2e against PostgreSQL.
+CI runs install, Prisma generate, migrations, lint, typecheck, build, unit/integration/security tests, the PostgreSQL concurrency smoke, high-severity npm audit, production smoke, and Playwright e2e against PostgreSQL.
 
 Private-pilot launch validation:
 
@@ -77,7 +77,7 @@ npm run start:prod
 
 `NODE_ENV=production` requires `JWT_SECRET`; startup-auth paths fail closed without it.
 
-Production also requires `DATABASE_URL`, `APP_ORIGIN`, and a private, non-default `PILOT_ACCESS_CODE` of at least 16 characters. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
+Production also requires `DATABASE_URL`, `APP_ORIGIN`, SMTP configuration, and a private, non-default `PILOT_ACCESS_CODE` of at least 16 characters. `ALLOW_MOCK_EMAIL` is not accepted in production; set `TRUST_PROXY=true` only when the deployment has exactly one trusted proxy hop. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
 
 ## Boundaries
 

@@ -340,6 +340,36 @@ describe('private pilot production hardening', () => {
     expect(response.body.error).toContain('SMTP_FROM');
   });
 
+  it('fails readiness when production proxy configuration is invalid', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.TRUST_PROXY = 'all';
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('CONFIG_INVALID_TRUST_PROXY');
+  });
+
+  it('fails readiness when production SMTP URL is invalid', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_URL = 'https://mail.example.com';
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('CONFIG_INVALID_SMTP');
+  });
+
+  it('fails readiness when production mock email is enabled', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ALLOW_MOCK_EMAIL = 'true';
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('CONFIG_MOCK_EMAIL_NOT_ALLOWED');
+  });
+
   it('rate limits repeated auth attempts', async () => {
     let sawRateLimit = false;
 

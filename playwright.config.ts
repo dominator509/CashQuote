@@ -9,7 +9,8 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm run dev --workspace server',
+      command: 'node ../node_modules/ts-node/dist/bin.js --project tsconfig.json src/index.ts',
+      cwd: 'server',
       url: 'http://127.0.0.1:3000/healthz',
       reuseExistingServer: !process.env.CI,
       env: {
@@ -22,10 +23,14 @@ export default defineConfig({
         PILOT_ACCESS_CODE: process.env.PILOT_ACCESS_CODE || 'e2e-private-pilot-code-12345',
         PILOT_EMAIL_ALLOWLIST: process.env.PILOT_EMAIL_ALLOWLIST || '',
         ALLOW_MOCK_EMAIL: 'true',
+        SMTP_URL: '',
+        SMTP_FROM: '',
+        TRUST_PROXY: 'false',
       },
     },
     {
-      command: 'npm run dev --workspace client -- --host 127.0.0.1',
+      command: 'node ../node_modules/vite/bin/vite.js --host 127.0.0.1',
+      cwd: 'client',
       url: 'http://127.0.0.1:5173',
       reuseExistingServer: !process.env.CI,
     },

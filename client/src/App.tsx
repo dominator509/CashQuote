@@ -81,6 +81,7 @@ interface AiGenerateResponse {
 
 const dollars = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+const REMINDER_CLOCK_SKEW_MS = 60_000;
 
 export function App() {
   const [business, setBusiness] = useState<Business | null>(null);
@@ -447,7 +448,14 @@ export function App() {
               <span>{quote.client?.name ?? quote.clientId}</span>
               <strong>{dollars(quote.total)}</strong>
               <button type="button" onClick={() => convertQuote(quote.id)}>Convert</button>
-              <button type="button" onClick={() => createReminder('quote', quote.id)}>Remind</button>
+              <button
+                type="button"
+                onClick={() => createReminder('quote', quote.id)}
+                disabled={!quote.client?.email}
+                title={quote.client?.email ? undefined : 'Client email is required for reminders'}
+              >
+                Remind
+              </button>
             </article>
           ))}
         </section>
@@ -469,7 +477,18 @@ export function App() {
                 <input name="method" defaultValue="manual" required />
                 <button type="submit">Record</button>
               </form>
-              <button type="button" onClick={() => createReminder('invoice', selectedInvoice.id)}>Remind</button>
+              <button
+                type="button"
+                onClick={() => createReminder('invoice', selectedInvoice.id)}
+                disabled={!selectedInvoice.client?.email}
+                title={
+                  selectedInvoice.client?.email
+                    ? undefined
+                    : 'Client email is required for reminders'
+                }
+              >
+                Remind
+              </button>
               <button type="button" onClick={() => window.print()}>Print</button>
             </>
           )}
@@ -492,7 +511,10 @@ export function App() {
               <button
                 type="button"
                 onClick={() => sendReminder(reminder.id)}
-                disabled={reminder.status !== 'pending'}
+                disabled={
+                  reminder.status !== 'pending' ||
+                  new Date(reminder.scheduledAt).getTime() > Date.now() + REMINDER_CLOCK_SKEW_MS
+                }
               >
                 Send
               </button>

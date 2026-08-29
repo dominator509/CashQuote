@@ -3,6 +3,7 @@ import { prisma } from 'db';
 import { AppError } from '../middlewares/error';
 import { createClientSchema, updateClientSchema } from 'shared';
 import { logActivity } from '../services/activity/activity.service';
+import { runSerializableTransaction } from '../services/billing/transaction.service';
 
 export const getClients = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
@@ -87,25 +88,27 @@ export const deleteClient = async (req: Request, res: Response) => {
   const businessId = req.business!.id;
   const { id } = req.params;
 
-  const client = await prisma.client.findFirst({
-    where: { id, businessId },
-    include: { _count: { select: { quotes: true, invoices: true } } },
-  });
+  await runSerializableTransaction(async (tx) => {
+    const client = await tx.client.findFirst({
+      where: { id, businessId },
+      include: { _count: { select: { quotes: true, invoices: true } } },
+    });
 
-  if (!client) {
-    throw new AppError('Client not found', 404);
-  }
+    if (!client) {
+      throw new AppError('Client not found', 404);
+    }
 
-  if (client._count.quotes > 0 || client._count.invoices > 0) {
-    throw new AppError(
-      'Client has financial records and cannot be deleted',
-      409,
-      'CLIENT_HAS_FINANCIAL_RECORDS'
-    );
-  }
+    if (client._count.quotes > 0 || client._count.invoices > 0) {
+      throw new AppError(
+        'Client has financial records and cannot be deleted',
+        409,
+        'CLIENT_HAS_FINANCIAL_RECORDS'
+      );
+    }
 
-  await prisma.client.delete({
-    where: { id },
+    await tx.client.delete({
+      where: { id },
+    });
   });
 
   await logActivity({

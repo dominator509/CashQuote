@@ -1,7 +1,18 @@
-import { getCorsOrigins, getJwtSecret, getPilotAccessCode } from '../../server/src/config/env';
+import {
+  getCorsOrigins,
+  getJwtSecret,
+  getPilotAccessCode,
+  getProductionReadinessConfig,
+  getSmtpConfig,
+  getTrustProxy,
+  isMockEmailAllowed,
+} from '../../server/src/config/env';
 import { requireBusinessId, requireBusinessOwner } from '../../server/src/middlewares/tenant';
 import { generateLineItemsWithFallback } from '../../server/src/services/ai/generation.service';
-import { aiGeneratedLineItemSchema } from '../../server/src/services/ai/ai.service';
+import {
+  aiGeneratedLineItemSchema,
+  aiGeneratedLineItemsSchema,
+} from '../../server/src/services/ai/ai.service';
 import { OpenAiAdapter } from '../../server/src/services/ai/openai.adapter';
 import {
   createInvoicePayment,
@@ -58,6 +69,15 @@ describe('Production MVP security and workflow seams', () => {
     }
   });
 
+  it('rejects whitespace-only required production configuration', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = '   ';
+
+    expect(() => getProductionReadinessConfig()).toThrow(
+      expect.objectContaining({ code: 'CONFIG_MISSING' })
+    );
+  });
+
   it('rejects the development JWT secret in production', () => {
     process.env.JWT_SECRET = 'development-only-jwt-secret';
     process.env.NODE_ENV = 'production';
@@ -104,6 +124,53 @@ describe('Production MVP security and workflow seams', () => {
         message: 'CORS_ORIGIN must not use a wildcard in production',
       });
     }
+  });
+
+  it('rejects an empty configured CORS origin list', () => {
+    process.env.CORS_ORIGIN = ',  ';
+
+    expect(() => getCorsOrigins()).toThrow(
+      expect.objectContaining({ code: 'CONFIG_INVALID_ORIGIN' })
+    );
+  });
+
+  it('does not trust forwarded client addresses by default in production', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.TRUST_PROXY;
+
+    expect(getTrustProxy()).toBe(false);
+  });
+
+  it('accepts one trusted proxy hop only when explicitly configured', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.TRUST_PROXY = 'true';
+
+    expect(getTrustProxy()).toBe(1);
+  });
+
+  it('rejects invalid proxy configuration', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.TRUST_PROXY = 'all';
+
+    expect(() => getTrustProxy()).toThrow(
+      expect.objectContaining({ code: 'CONFIG_INVALID_TRUST_PROXY' })
+    );
+  });
+
+  it('never allows mock email in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ALLOW_MOCK_EMAIL = 'true';
+
+    expect(isMockEmailAllowed()).toBe(false);
+  });
+
+  it('rejects non-SMTP transport URLs', () => {
+    process.env.SMTP_URL = 'https://mail.example.com';
+    process.env.SMTP_FROM = 'billing@example.com';
+
+    expect(() => getSmtpConfig()).toThrow(
+      expect.objectContaining({ code: 'CONFIG_INVALID_SMTP' })
+    );
   });
 
   it('accepts tenant context only when user is a business member', async () => {
@@ -263,6 +330,26 @@ describe('Production MVP security and workflow seams', () => {
     ).toBe(false);
   });
 
+  it('requires at least one AI-generated line item', () => {
+    expect(aiGeneratedLineItemsSchema.safeParse([]).success).toBe(false);
+  });
+
+  it('applies persistence collection limits to AI-generated line items', () => {
+    const overLimitItems = Array.from({ length: 101 }, (_, index) => ({
+      description: `Item ${index}`,
+      quantity: 1,
+      price: 1,
+    }));
+
+    expect(aiGeneratedLineItemsSchema.safeParse(overLimitItems).success).toBe(false);
+    expect(
+      aiGeneratedLineItemsSchema.safeParse([
+        { description: 'A', quantity: 10_000, price: 107_374_182 },
+        { description: 'B', quantity: 10_000, price: 107_374_182 },
+      ]).success
+    ).toBe(false);
+  });
+
   it('records payment and marks invoice paid when total is covered', async () => {
     (prisma.invoice.findFirst as jest.Mock).mockResolvedValue({
       id: 'inv-1',
@@ -334,6 +421,10 @@ describe('Production MVP security and workflow seams', () => {
   });
 
   it('creates and sends reminders through the mock mail path', async () => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.SMTP_URL;
+    delete process.env.SMTP_FROM;
+    process.env.ALLOW_MOCK_EMAIL = 'true';
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue({
       id: 'quote-1',
       client: { email: 'client@example.com' },
@@ -403,11 +494,11 @@ describe('Production MVP security and workflow seams', () => {
     expect(prisma.reminder.create).not.toHaveBeenCalled();
   });
 
-  it('fails reminder send in production when email is not configured', async () => {
+  it('fails reminder send in production when email is not configured, even if mock email is enabled', async () => {
     process.env.NODE_ENV = 'production';
     delete process.env.SMTP_URL;
     delete process.env.SMTP_FROM;
-    delete process.env.ALLOW_MOCK_EMAIL;
+    process.env.ALLOW_MOCK_EMAIL = 'true';
     (prisma.quote.findFirst as jest.Mock).mockResolvedValue({
       id: 'quote-1',
       client: { email: 'client@example.com' },
@@ -487,6 +578,26 @@ describe('Production MVP security and workflow seams', () => {
     expect(prisma.reminder.update).not.toHaveBeenCalled();
   });
 
+  it('rejects sending a reminder when the client email is invalid', async () => {
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue({
+      id: 'quote-1',
+      client: { email: 'not-an-email' },
+    });
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-invalid-email',
+      status: 'pending',
+      entityId: 'quote-1',
+      entityType: 'quote',
+      scheduledAt: new Date().toISOString(),
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-invalid-email')).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'REMINDER_CLIENT_EMAIL_INVALID',
+    });
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
+  });
+
   it('prevents sending a reminder before its scheduled time', async () => {
     (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
       id: 'rem-future',
@@ -503,6 +614,25 @@ describe('Production MVP security and workflow seams', () => {
     });
 
     expect(prisma.quote.findFirst).not.toHaveBeenCalled();
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for an invalid persisted reminder entity type', async () => {
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-invalid-type',
+      status: 'pending',
+      entityId: 'unknown-entity',
+      entityType: 'client',
+      scheduledAt: new Date().toISOString(),
+    });
+
+    await expect(sendReminder('biz-1', 'user-1', 'rem-invalid-type')).rejects.toMatchObject({
+      statusCode: 500,
+      code: 'REMINDER_ENTITY_TYPE_INVALID',
+    });
+
+    expect(prisma.quote.findFirst).not.toHaveBeenCalled();
+    expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
     expect(prisma.reminder.update).not.toHaveBeenCalled();
   });
 

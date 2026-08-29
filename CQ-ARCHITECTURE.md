@@ -51,7 +51,7 @@ The long-term vision for QuoteCash is to become an enterprise-grade financial op
 
 ### 5.5 Lost Cash Radar & Reminders
 * **Purpose:** Proactive revenue recovery.
-* **Responsibilities:** Running heuristic rules against the database (e.g., `status = 'accepted' AND invoiceId IS NULL`).
+* **Responsibilities:** Running heuristic rules against the database (e.g., accepted quotes without an authoritative `sourceQuoteId` conversion and overdue unpaid invoices using payment-adjusted outstanding balances).
 * **Data Entities:** `reminders`, cross-referencing `quotes` and `invoices`.
 * **Security/Performance:** These queries can become expensive. Must be heavily indexed on `status`, `createdAt`, and `dueDate`.
 
@@ -73,7 +73,7 @@ The system uses a traditional Client-Server model with a focus on business-scope
 
 ## 8. External Integrations & API Adapters
 - **AI Service Adapter (`IAIService`):** Interface for generating line items with a mock fallback mechanism.
-- **Email Service Adapter (`IMailService`):** V1 utilizes a `MockMailService` logging to console and updating reminder status.
+- **Email Service Adapter (`IMailService`):** Production uses `SmtpMailService` with an explicit client recipient; non-production may use the deterministic `MockMailService`. Reminder claims remain durable across ambiguous provider failures.
 
 ## 9. Advanced Security Architecture
 - **Tenant Isolation:** Mandatory `businessId` filtering on all DB queries.
@@ -117,7 +117,7 @@ Restful API structure with routes for:
 - Strict TypeScript/JSDoc interfaces shared between client and server.
 
 ## 16. Deployment & CI/CD Architecture
-- **Replit Target:** Automated schema pushes via Prisma on startup.
+- **Deployment:** Docker and the production start wrappers run `prisma migrate deploy` before starting the built service.
 - **Environment Variables:** Documented in `.env.example`.
 
 ## 17. Observability and Analytics

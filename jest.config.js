@@ -1,6 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/tests/setup-env.ts'],
   moduleNameMapper: {
     '^db$': '<rootDir>/packages/db/src/index.ts',
     '^shared$': '<rootDir>/packages/shared/src/index.ts'

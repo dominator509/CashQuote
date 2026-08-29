@@ -1,14 +1,10 @@
 import nodemailer from 'nodemailer';
 import { buildReminderSubject, IMailService, ReminderMailInput } from './mail.service';
+import { getSmtpConfig } from '../../config/env';
 
 export class SmtpMailService implements IMailService {
   async sendReminder(input: ReminderMailInput): Promise<void> {
-    const smtpUrl = process.env.SMTP_URL;
-    const from = process.env.SMTP_FROM;
-
-    if (!smtpUrl || !from) {
-      throw new Error('SMTP mail service is not configured');
-    }
+    const { smtpUrl, smtpFrom: from } = getSmtpConfig();
 
     const transporter = nodemailer.createTransport(smtpUrl);
     await transporter.sendMail({

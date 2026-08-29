@@ -10,7 +10,7 @@ import { requireBusinessId } from './middlewares/tenant';
 import { errorHandler } from './middlewares/error';
 import { aiRateLimit, authRateLimit, corsMiddleware, securityHeaders } from './middlewares/security';
 import { requestLogger } from './middlewares/request-logger';
-import { assertProductionReady, isProduction } from './config/env';
+import { assertProductionReady, getTrustProxy, isProduction } from './config/env';
 import { getStaticClientBuild } from './config/static-client';
 import { logger } from './services/logger/logger.service';
 
@@ -25,8 +25,9 @@ import activityRoutes from './routes/activity.routes';
 const app = express();
 const port = process.env.PORT || 3000;
 
-if (process.env.TRUST_PROXY === 'true' || isProduction()) {
-  app.set('trust proxy', 1);
+const trustProxy = getTrustProxy();
+if (trustProxy !== false) {
+  app.set('trust proxy', trustProxy);
 }
 
 app.use(requestLogger);

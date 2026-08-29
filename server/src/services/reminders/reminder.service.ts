@@ -1,23 +1,41 @@
 import { prisma } from 'db';
+import type { Prisma } from 'db';
 import { AppError } from '../../middlewares/error';
 import { getReminderMailService } from '../mail/mail-provider.service';
 import { runSerializableTransaction, isPrismaErrorCode } from '../billing/transaction.service';
 import { ACTIVE_REMINDER_STATUSES } from './reminder-status';
+import { z } from 'zod';
 
 type EntityType = 'quote' | 'invoice';
 const REMINDER_CLOCK_SKEW_MS = 60_000;
+const clientEmailSchema = z.string().trim().email();
 
 type ReminderTarget = {
   clientEmail: string | null;
 };
 
+const parseEntityType = (value: string): EntityType => {
+  if (value === 'quote' || value === 'invoice') {
+    return value;
+  }
+
+  throw new AppError(
+    'Reminder entity type is invalid',
+    500,
+    'REMINDER_ENTITY_TYPE_INVALID'
+  );
+};
+
+type EntityReader = Pick<Prisma.TransactionClient, 'quote' | 'invoice'>;
+
 const ensureEntityExists = async (
   entityType: EntityType,
   entityId: string,
-  businessId: string
+  businessId: string,
+  db: EntityReader = prisma
 ): Promise<ReminderTarget> => {
   if (entityType === 'quote') {
-    const quote = await prisma.quote.findFirst({
+    const quote = await db.quote.findFirst({
       where: { id: entityId, businessId },
       include: { client: { select: { email: true } } },
     });
@@ -25,7 +43,7 @@ const ensureEntityExists = async (
     return { clientEmail: quote.client?.email ?? null };
   }
 
-  const invoice = await prisma.invoice.findFirst({
+  const invoice = await db.invoice.findFirst({
     where: { id: entityId, businessId },
     include: { client: { select: { email: true } } },
   });
@@ -50,10 +68,10 @@ export const createReminder = async (
     throw new AppError('Reminder date cannot be in the past', 400, 'REMINDER_DATE_IN_PAST');
   }
 
-  await ensureEntityExists(input.entityType, input.entityId, businessId);
-
   try {
     return await runSerializableTransaction(async (tx) => {
+      await ensureEntityExists(input.entityType, input.entityId, businessId, tx);
+
       const activeReminder = await tx.reminder.findFirst({
         where: {
           businessId,
@@ -130,13 +148,21 @@ export const sendReminder = async (businessId: string, userId: string | undefine
     throw new AppError('Reminder is not scheduled to send yet', 409, 'REMINDER_NOT_DUE');
   }
 
-  const entityType = reminder.entityType === 'quote' ? 'quote' : 'invoice';
+  const entityType = parseEntityType(reminder.entityType);
   const target = await ensureEntityExists(entityType, reminder.entityId, businessId);
   if (!target.clientEmail) {
     throw new AppError(
       'Client email is required to send a reminder',
       400,
       'REMINDER_CLIENT_EMAIL_MISSING'
+    );
+  }
+  const clientEmail = clientEmailSchema.safeParse(target.clientEmail);
+  if (!clientEmail.success) {
+    throw new AppError(
+      'Client email is invalid and cannot receive a reminder',
+      400,
+      'REMINDER_CLIENT_EMAIL_INVALID'
     );
   }
 
@@ -153,28 +179,15 @@ export const sendReminder = async (businessId: string, userId: string | undefine
     throw error;
   }
 
-  try {
-    await mailService.sendReminder({
-      to: target.clientEmail,
-      businessId,
-      entityId: reminder.entityId,
-      entityType,
-    });
-  } catch (error) {
-    // A definite provider failure can safely return the reminder to pending.
-    // An abrupt process exit leaves it in sending, preventing an unsafe retry
-    // after SMTP may already have accepted the message.
-    try {
-      await prisma.reminder.updateMany({
-        where: { id, businessId, status: 'sending' },
-        data: { status: 'pending' },
-      });
-    } catch {
-      // Preserve the original provider error; the sending state is durable for
-      // an operator to inspect and recover explicitly.
-    }
-    throw error;
-  }
+  // SMTP failures can be ambiguous: the provider may have accepted the
+  // message before the connection failed. Keep the durable sending claim so
+  // a retry cannot silently send a duplicate reminder.
+  await mailService.sendReminder({
+    to: clientEmail.data,
+    businessId,
+    entityId: reminder.entityId,
+    entityType,
+  });
 
   try {
     return await runSerializableTransaction(async (tx) => {

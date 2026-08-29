@@ -20,7 +20,13 @@ export interface ProductionReadinessConfig {
   smtpFrom: string;
 }
 
+export interface SmtpConfig {
+  smtpUrl: string;
+  smtpFrom: string;
+}
+
 const isTruthy = (value: string | undefined): boolean => value === 'true' || value === '1';
+const isConfigured = (value: string | undefined): boolean => Boolean(value?.trim());
 
 export const isProduction = (): boolean => process.env.NODE_ENV === 'production';
 
@@ -49,14 +55,65 @@ export const isDemoLoginAllowed = (): boolean =>
   !isProduction() || isTruthy(process.env.ALLOW_DEMO_LOGIN);
 
 export const isMockEmailAllowed = (): boolean =>
-  !isProduction() || isTruthy(process.env.ALLOW_MOCK_EMAIL);
+  !isProduction();
+
+export const getTrustProxy = (): false | 1 => {
+  const configured = process.env.TRUST_PROXY?.trim().toLowerCase();
+
+  if (!configured || configured === 'false') {
+    return false;
+  }
+
+  if (configured === 'true') {
+    return 1;
+  }
+
+  throw new AppError(
+    'TRUST_PROXY must be either true or false',
+    500,
+    'CONFIG_INVALID_TRUST_PROXY'
+  );
+};
+
+export const getSmtpConfig = (): SmtpConfig => {
+  const smtpUrl = process.env.SMTP_URL?.trim();
+  const smtpFrom = process.env.SMTP_FROM?.trim();
+  if (!smtpUrl || !smtpFrom) {
+    const missing = [
+      !smtpUrl ? 'SMTP_URL' : null,
+      !smtpFrom ? 'SMTP_FROM' : null,
+    ].filter((key): key is string => Boolean(key));
+    throw new AppError(
+      `Missing required production environment: ${missing.join(', ')}`,
+      500,
+      'CONFIG_MISSING'
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(smtpUrl);
+  } catch {
+    throw new AppError('SMTP_URL must be a valid smtp:// or smtps:// URL', 500, 'CONFIG_INVALID_SMTP');
+  }
+
+  if (!['smtp:', 'smtps:'].includes(parsed.protocol) || !parsed.hostname) {
+    throw new AppError('SMTP_URL must be a valid smtp:// or smtps:// URL', 500, 'CONFIG_INVALID_SMTP');
+  }
+
+  return { smtpUrl, smtpFrom };
+};
 
 export const getCorsOrigins = (): string[] => {
-  const configured = process.env.CORS_ORIGIN || process.env.APP_ORIGIN || 'http://localhost:5173';
+  const configured = process.env.CORS_ORIGIN?.trim() || process.env.APP_ORIGIN || 'http://localhost:5173';
   const origins = configured
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  if (origins.length === 0) {
+    throw new AppError('CORS_ORIGIN must contain at least one origin', 500, 'CONFIG_INVALID_ORIGIN');
+  }
 
   origins.forEach((origin) => ensureProductionWebOrigin(origin, 'CORS_ORIGIN'));
   return origins;
@@ -69,7 +126,7 @@ export const getPilotEmailAllowlist = (): string[] =>
     .filter(Boolean);
 
 export const getJwtSecret = (): string => {
-  if (process.env.JWT_SECRET) {
+  if (isConfigured(process.env.JWT_SECRET)) {
     if (isProduction() && process.env.JWT_SECRET === DEV_JWT_SECRET) {
       throw new AppError(
         'JWT_SECRET must not use the development default in production',
@@ -78,7 +135,7 @@ export const getJwtSecret = (): string => {
       );
     }
 
-    return process.env.JWT_SECRET;
+    return process.env.JWT_SECRET!;
   }
 
   if (isProduction()) {
@@ -110,16 +167,20 @@ export const getPilotAccessCode = (): string => {
 };
 
 export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
+  if (isTruthy(process.env.ALLOW_MOCK_EMAIL)) {
+    throw new AppError(
+      'ALLOW_MOCK_EMAIL must be disabled in production',
+      500,
+      'CONFIG_MOCK_EMAIL_NOT_ALLOWED'
+    );
+  }
+
   const missing = [
     'DATABASE_URL',
     'JWT_SECRET',
     'APP_ORIGIN',
     'PILOT_ACCESS_CODE',
-    'SMTP_URL',
-    'SMTP_FROM',
-  ].filter(
-    (key) => !process.env[key]
-  );
+  ].filter((key) => !isConfigured(process.env[key]));
 
   if (missing.length > 0) {
     throw new AppError(
@@ -132,6 +193,8 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
   const jwtSecret = getJwtSecret();
   const pilotAccessCode = getPilotAccessCode();
   ensureProductionWebOrigin(process.env.APP_ORIGIN!, 'APP_ORIGIN');
+  getTrustProxy();
+  const { smtpUrl, smtpFrom } = getSmtpConfig();
 
   return {
     appOrigin: process.env.APP_ORIGIN!,
@@ -139,8 +202,8 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
     jwtSecret,
     databaseUrl: process.env.DATABASE_URL!,
     pilotAccessCode,
-    smtpUrl: process.env.SMTP_URL!,
-    smtpFrom: process.env.SMTP_FROM!,
+    smtpUrl,
+    smtpFrom,
   };
 };
 

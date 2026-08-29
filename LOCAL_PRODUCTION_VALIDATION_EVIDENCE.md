@@ -1,5 +1,7 @@
 # Local Production Validation Evidence
 
+The June evidence below is historical and predates the August pre-ship audit remediation. Use the current remediation evidence section at the end of this document for the present working tree; in particular, production now rejects `ALLOW_MOCK_EMAIL=true`.
+
 Run timestamp: 2026-06-24T22:16:58.0910579-07:00
 
 ## Environment
@@ -156,3 +158,32 @@ npm test -- --runInBand: 6 passed, 6 total; 33 passed, 33 total
 npm run build: passed
 git diff --check: passed
 ```
+
+## Current Remediation Evidence
+
+Run date: 2026-08-28
+
+The current working tree has passed the following repository-local checks:
+
+```text
+typecheck: passed
+lint: passed
+build: passed
+full Jest: 23 suites passed, 118 tests passed
+production-like unit Jest: 19 suites passed, 91 tests passed
+production-like integration Jest: 2 suites passed, 3 tests passed
+production-like security Jest: 2 suites passed, 24 tests passed
+SMTP capture integration: 1 test passed
+Playwright E2E: 2 tests passed
+offline npm audit --audit-level=high: found 0 vulnerabilities
+```
+
+The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result.
+
+A fresh PostgreSQL 16 schema applied both committed migrations successfully. The repository's concurrency smoke then passed under production-like SMTP variables with mock email disabled at the caller:
+
+```text
+PostgreSQL concurrency smoke passed: payments, invoice update/payment, invoice delete/payment, conversion, reminder create/send
+```
+
+The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the aggregate command green. Hosted GitHub Actions remains blocked by the account billing/spending limit. Real provider SMTP acceptance, deployment proxy topology, branch protection, and final-SHA hosted evidence remain deployment or repository-administration responsibilities.

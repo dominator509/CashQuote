@@ -1,4 +1,4 @@
-import { createPaymentSchema } from '../../packages/shared/src';
+import { createPaymentSchema, MAX_DATABASE_INT } from '../../packages/shared/src';
 
 describe('payment schema integrity', () => {
   it('trims payment methods before persistence', () => {
@@ -24,6 +24,15 @@ describe('payment schema integrity', () => {
       createPaymentSchema.parse({
         amount: 100,
         method: 'x'.repeat(51),
+      })
+    ).toThrow();
+  });
+
+  it('rejects payment amounts outside the persisted integer range', () => {
+    expect(() =>
+      createPaymentSchema.parse({
+        amount: MAX_DATABASE_INT + 1,
+        method: 'manual',
       })
     ).toThrow();
   });
