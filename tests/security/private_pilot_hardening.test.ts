@@ -31,6 +31,7 @@ describe('private pilot production hardening', () => {
       PILOT_EMAIL_ALLOWLIST: 'pilot@example.com',
       SMTP_URL: 'smtp://localhost:1025',
       SMTP_FROM: 'billing@example.com',
+      ALLOW_MOCK_EMAIL: 'false',
     };
     (prisma.activityLog.create as jest.Mock).mockResolvedValue({ id: 'log-1' });
   });
