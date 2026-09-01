@@ -82,6 +82,8 @@ interface AiGenerateResponse {
 const dollars = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 const REMINDER_CLOCK_SKEW_MS = 60_000;
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'Request failed';
 
 export function App() {
   const [business, setBusiness] = useState<Business | null>(null);
@@ -188,17 +190,21 @@ export function App() {
 
   const pilotLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const result = await request<AuthResponse>('/api/auth/pilot-login', {
-      method: 'POST',
-      body: JSON.stringify({
-        email: pilotEmail,
-        accessCode: pilotAccessCode,
-      }),
-    });
-    setBusiness(result.business);
-    setPilotAccessCode('');
-    setMessage(`Logged into ${result.business.name}.`);
-    await refresh(result.business);
+    try {
+      const result = await request<AuthResponse>('/api/auth/pilot-login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: pilotEmail,
+          accessCode: pilotAccessCode,
+        }),
+      });
+      setBusiness(result.business);
+      setPilotAccessCode('');
+      setMessage(`Logged into ${result.business.name}.`);
+      await refresh(result.business);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const logout = async () => {
@@ -210,47 +216,55 @@ export function App() {
   const createClient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    await request<Client>('/api/clients', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: String(form.get('name')),
-        email: String(form.get('email') || '') || null,
-      }),
-    });
-    formElement.reset();
-    setMessage('Client created.');
-    await refresh();
+    try {
+      const form = new FormData(formElement);
+      await request<Client>('/api/clients', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: String(form.get('name')),
+          email: String(form.get('email') || '') || null,
+        }),
+      });
+      formElement.reset();
+      setMessage('Client created.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const createQuote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const clientId = String(form.get('clientId'));
-    await request<Quote>('/api/quotes', {
-      method: 'POST',
-      body: JSON.stringify({
-        clientId,
-        status: 'accepted',
-        taxRatePercent: Number(quoteTaxRatePercent || 0),
-        lineItems: [
-          {
-            description: quoteDescription,
-            quantity: Number(quoteQuantity || 1),
-            price: Math.round(Number(quotePrice || 0) * 100),
-            category: 'Service',
-          },
-        ],
-      }),
-    });
-    formElement.reset();
-    setQuoteDescription('');
-    setQuoteQuantity('1');
-    setQuotePrice('');
-    setQuoteTaxRatePercent('');
-    setMessage('Accepted quote created.');
-    await refresh();
+    try {
+      const form = new FormData(formElement);
+      const clientId = String(form.get('clientId'));
+      await request<Quote>('/api/quotes', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          status: 'accepted',
+          taxRatePercent: Number(quoteTaxRatePercent || 0),
+          lineItems: [
+            {
+              description: quoteDescription,
+              quantity: Number(quoteQuantity || 1),
+              price: Math.round(Number(quotePrice || 0) * 100),
+              category: 'Service',
+            },
+          ],
+        }),
+      });
+      formElement.reset();
+      setQuoteDescription('');
+      setQuoteQuantity('1');
+      setQuotePrice('');
+      setQuoteTaxRatePercent('');
+      setMessage('Accepted quote created.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const generateAiDraft = async () => {
@@ -281,51 +295,71 @@ export function App() {
   };
 
   const convertQuote = async (quoteId: string) => {
-    const invoice = await request<Invoice>(`/api/quotes/${quoteId}/convert`, { method: 'POST' });
-    setSelectedInvoiceId(invoice.id);
-    setMessage('Quote converted to invoice.');
-    await refresh();
+    try {
+      const invoice = await request<Invoice>(`/api/quotes/${quoteId}/convert`, { method: 'POST' });
+      setSelectedInvoiceId(invoice.id);
+      setMessage('Quote converted to invoice.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const createPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedInvoice) return;
     const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    await request<Payment>(`/api/invoices/${selectedInvoice.id}/payments`, {
-      method: 'POST',
-      body: JSON.stringify({
-        amount: Math.round(Number(form.get('amount') || 0) * 100),
-        method: String(form.get('method') || 'manual'),
-      }),
-    });
-    formElement.reset();
-    setMessage('Payment recorded.');
-    await refresh();
+    try {
+      const form = new FormData(formElement);
+      await request<Payment>(`/api/invoices/${selectedInvoice.id}/payments`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: Math.round(Number(form.get('amount') || 0) * 100),
+          method: String(form.get('method') || 'manual'),
+        }),
+      });
+      formElement.reset();
+      setMessage('Payment recorded.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const createReminder = async (entityType: 'quote' | 'invoice', entityId: string) => {
     // This MVP exposes a manual Send action rather than a background scheduler.
     // Create reminders due now so the UI and server enforce the same contract.
-    const scheduledAt = new Date().toISOString();
-    await request<Reminder>('/api/reminders', {
-      method: 'POST',
-      body: JSON.stringify({ entityType, entityId, scheduledAt }),
-    });
-    setMessage('Reminder scheduled.');
-    await refresh();
+    try {
+      const scheduledAt = new Date().toISOString();
+      await request<Reminder>('/api/reminders', {
+        method: 'POST',
+        body: JSON.stringify({ entityType, entityId, scheduledAt }),
+      });
+      setMessage('Reminder scheduled.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const sendReminder = async (id: string) => {
-    await request<Reminder>(`/api/reminders/${id}/send`, { method: 'POST' });
-    setMessage('Reminder sent.');
-    await refresh();
+    try {
+      await request<Reminder>(`/api/reminders/${id}/send`, { method: 'POST' });
+      setMessage('Reminder sent.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   const resolveReminder = async (id: string) => {
-    await request<Reminder>(`/api/reminders/${id}/resolve`, { method: 'POST' });
-    setMessage('Reminder resolved.');
-    await refresh();
+    try {
+      await request<Reminder>(`/api/reminders/${id}/resolve`, { method: 'POST' });
+      setMessage('Reminder resolved.');
+      await refresh();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
   };
 
   if (!business) {

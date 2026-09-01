@@ -17,6 +17,7 @@
 - Rejected the documented JWT configuration placeholder in production.
 - Required production JWT secrets to be at least 32 characters.
 - Validated the production SMTP sender address during readiness checks.
+- Surfaced API failures from the pilot workflow and billing/reminder actions in the client status banner.
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.

@@ -1,5 +1,15 @@
 import { expect, test } from '@playwright/test';
 
+test('surfaces pilot login failures in the status banner', async ({ page }) => {
+  await page.goto('/');
+  await page.getByPlaceholder('Pilot email').fill('pilot@example.com');
+  await page.getByPlaceholder('Access code').fill('incorrect-pilot-access-code');
+  await page.getByRole('button', { name: 'Pilot Login' }).click();
+
+  await expect(page.getByText('Invalid pilot access code')).toBeVisible();
+  await expect(page.getByText('Quote Builder')).not.toBeVisible();
+});
+
 test('private pilot workflow reaches invoice print/export', async ({ page }) => {
   const unique = Date.now();
   const pilotEmail =
