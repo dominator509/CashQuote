@@ -169,18 +169,17 @@ The current working tree has passed the following repository-local checks:
 typecheck: passed
 lint: passed
 build: passed
-full Jest: 25 suites passed, 129 tests passed
-unit Jest: 21 suites passed, 100 tests passed
+full Jest: 26 suites passed, 133 tests passed
+unit Jest: 22 suites passed, 101 tests passed
 integration Jest: 2 suites passed, 4 tests passed, including full reminder SMTP delivery-path coverage
-security Jest: 2 suites passed, 25 tests passed
+security Jest: 2 suites passed, 28 tests passed
 SMTP capture integration: 2 tests passed
-Playwright E2E: hosted CI run 33464420203 passed 4 tests, including login failure, session-restore failure, the private-pilot workflow, and unauthenticated access.
+Playwright E2E: hosted CI run 33469630384 passed 4 tests, including login failure, session-restore failure, the private-pilot workflow, and unauthenticated access.
 offline npm audit --audit-level=high: found 0 vulnerabilities
-hosted GitHub Actions CI: success for source-code ship SHA 6abff793 (run 33464420203), including Docker image build/boot/readiness, PostgreSQL concurrency, SMTP reminder integration, dependency audit, production smoke, and E2E
-evidence-only follow-up SHA ba666e13 (run 33464721344): full hosted gate passed
+hosted GitHub Actions CI: success for source-code hardening SHA 2c655638 (run 33469630384), including Docker image build/boot/readiness, PostgreSQL concurrency, SMTP reminder integration, dependency audit, production smoke, and E2E
 ```
 
-The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result. The current hosted run 33464420203 completed the bounded high-severity audit successfully.
+The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result. Hosted run 33469630384 completed the bounded high-severity audit successfully.
 
 A fresh PostgreSQL 16 schema applied both committed migrations successfully. The repository's concurrency smoke then passed under production-like SMTP variables with mock email disabled at the caller:
 
@@ -188,4 +187,4 @@ A fresh PostgreSQL 16 schema applied both committed migrations successfully. The
 PostgreSQL concurrency smoke passed: payments, invoice update/payment, invoice delete/payment, conversion, reminder create/send
 ```
 
-The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the local aggregate command green. GitHub Actions runs 33464420203 and 33464721344 completed green for the source-code ship SHA and its evidence-only follow-up, exercising the packaged Docker image's migration, boot, and health/readiness endpoints. Real provider SMTP acceptance, deployment proxy topology, branch protection, and Git-history secret scanning remain deployment or repository-administration responsibilities.
+The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the local aggregate command green. GitHub Actions run 33469630384 completed green for source-code hardening SHA 2c655638, exercising the packaged Docker image's migration, boot, and health/readiness endpoints. Real provider SMTP acceptance, deployment proxy topology, branch protection, and Git-history secret scanning remain deployment or repository-administration responsibilities.
