@@ -174,9 +174,9 @@ production-like unit Jest: 19 suites passed, 91 tests passed
 production-like integration Jest: 2 suites passed, 3 tests passed
 production-like security Jest: 2 suites passed, 24 tests passed
 SMTP capture integration: 1 test passed
-Playwright E2E: 2 tests passed
+Playwright E2E: hosted CI run 33459695531 passed 4 tests, including login failure, session-restore failure, the private-pilot workflow, and unauthenticated access.
 offline npm audit --audit-level=high: found 0 vulnerabilities
-hosted GitHub Actions CI: success for exact SHA 8f08ed3 (run 33454949180), including Docker image build/boot/readiness
+hosted GitHub Actions CI: success for exact SHA 344b3ae (run 33459695531), including Docker image build/boot/readiness
 ```
 
 The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result.
@@ -187,4 +187,4 @@ A fresh PostgreSQL 16 schema applied both committed migrations successfully. The
 PostgreSQL concurrency smoke passed: payments, invoice update/payment, invoice delete/payment, conversion, reminder create/send
 ```
 
-The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the local aggregate command green. GitHub Actions run 33454949180 subsequently completed green for the latest code-remediation SHA and exercised the packaged Docker image's migration, boot, and health/readiness endpoints. Real provider SMTP acceptance, deployment proxy topology, branch protection, and Git-history secret scanning remain deployment or repository-administration responsibilities.
+The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the local aggregate command green. GitHub Actions run 33459695531 subsequently completed green for the current ship-candidate SHA and exercised the packaged Docker image's migration, boot, and health/readiness endpoints. Real provider SMTP acceptance, deployment proxy topology, branch protection, and Git-history secret scanning remain deployment or repository-administration responsibilities.
