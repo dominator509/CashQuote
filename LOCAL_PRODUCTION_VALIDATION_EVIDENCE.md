@@ -176,7 +176,7 @@ production-like security Jest: 2 suites passed, 24 tests passed
 SMTP capture integration: 1 test passed
 Playwright E2E: hosted CI run 33459695531 passed 4 tests, including login failure, session-restore failure, the private-pilot workflow, and unauthenticated access.
 offline npm audit --audit-level=high: found 0 vulnerabilities
-hosted GitHub Actions CI: success for exact SHA 344b3ae (run 33459695531), including Docker image build/boot/readiness
+hosted GitHub Actions CI: success for code-remediation SHA 344b3ae (run 33459695531), including Docker image build/boot/readiness; the subsequent evidence-only update also passed the full gate in run 33460143693
 ```
 
 The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result.
