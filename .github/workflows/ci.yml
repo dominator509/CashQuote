@@ -34,8 +34,8 @@ jobs:
       NODE_ENV: test
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -45,6 +45,47 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run build
+      - name: Build production Docker image
+        run: docker build --tag cashquote:ci .
+      - name: Boot production Docker image
+        env:
+          DOCKER_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cashquote
+        run: |
+          set -euo pipefail
+          container_name=cashquote-ci
+          docker rm --force "$container_name" >/dev/null 2>&1 || true
+          cleanup() {
+            docker logs "$container_name" || true
+            docker rm --force "$container_name" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run --detach --name "$container_name" --network host \
+            --env NODE_ENV=production \
+            --env PORT=3200 \
+            --env "DATABASE_URL=$DOCKER_DATABASE_URL" \
+            --env JWT_SECRET=ci-secret-for-tests-only \
+            --env APP_ORIGIN=http://127.0.0.1:3200 \
+            --env CORS_ORIGIN=http://127.0.0.1:3200 \
+            --env PILOT_ACCESS_CODE=ci-private-pilot-code-12345 \
+            --env SMTP_URL=smtp://127.0.0.1:2525 \
+            --env SMTP_FROM=ci@example.com \
+            --env ALLOW_MOCK_EMAIL=false \
+            --env TRUST_PROXY=false \
+            cashquote:ci
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3200/readyz >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "Docker production image did not become ready"
+            exit 1
+          fi
+          curl --fail --silent http://127.0.0.1:3200/healthz >/dev/null
+          curl --fail --silent http://127.0.0.1:3200/ >/dev/null
       - run: npm run lint
       - run: npm run test:unit
       - run: npm run test:integration

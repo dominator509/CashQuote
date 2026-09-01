@@ -161,7 +161,7 @@ git diff --check: passed
 
 ## Current Remediation Evidence
 
-Run date: 2026-08-28
+Run date: 2026-08-31
 
 The current working tree has passed the following repository-local checks:
 
@@ -176,6 +176,7 @@ production-like security Jest: 2 suites passed, 24 tests passed
 SMTP capture integration: 1 test passed
 Playwright E2E: 2 tests passed
 offline npm audit --audit-level=high: found 0 vulnerabilities
+hosted GitHub Actions CI: success for exact SHA 6cc918c (run 33258484205)
 ```
 
 The live audit command was attempted with the same bounded settings used by the release gate. npm returned `audit endpoint returned an error` from the registry security endpoint; it failed fast rather than hanging. The offline lockfile audit remains clean, and the live registry failure is therefore recorded as unavailable advisory-service evidence, not as a clean hosted dependency result.
@@ -186,4 +187,4 @@ A fresh PostgreSQL 16 schema applied both committed migrations successfully. The
 PostgreSQL concurrency smoke passed: payments, invoice update/payment, invoice delete/payment, conversion, reminder create/send
 ```
 
-The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the aggregate command green. Hosted GitHub Actions remains blocked by the account billing/spending limit. Real provider SMTP acceptance, deployment proxy topology, branch protection, and final-SHA hosted evidence remain deployment or repository-administration responsibilities.
+The full `npm run validate:prod` command was also exercised against a fresh schema. The individual repository stages were independently verified under the same production-like environment; the aggregate command's network-backed `npm audit` stage did not complete in the restricted execution environment, so this document does not claim the local aggregate command green. GitHub Actions run 33258484205 subsequently completed green for the exact final remediation SHA, closing the repository CI gate. Real provider SMTP acceptance, Docker production-image boot, deployment proxy topology, branch protection, and Git-history secret scanning remain deployment or repository-administration responsibilities.

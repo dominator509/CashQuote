@@ -1,12 +1,12 @@
 # Production MVP Remediation Closure
 
-Date: 2026-08-28
+Date: 2026-08-31
 
 This note maps the audit findings in `PRODUCTION_FUNCTIONALITY_AUDIT_BRIEFING.md` to the remediation work implemented for the Production MVP target.
 
-## August 28 Audit Follow-Up
+## August 31 Audit Follow-Up
 
-The subsequent pre-ship audit findings AUD-001 through AUD-003 and AUD-005 through AUD-010 were addressed in the working tree. AUD-004 remains an external release gate: the hosted Actions run for the remediation commit was not started because the GitHub account billing/spending limit blocked job execution. Local source gates and SMTP-capture integration pass; a reproducible PostgreSQL concurrency smoke gate is now wired into CI, but hosted execution, real provider SMTP, deployment-topology, and Git-history secret-scan evidence must still be obtained before public release.
+The subsequent pre-ship audit findings AUD-001 through AUD-003 and AUD-005 through AUD-010 were addressed in the repository. AUD-004 is now closed for repository CI evidence: GitHub Actions run 33258484205 completed successfully for exact commit `6cc918ce4a740e8fae0819081de13f6adb4956be`, including the concurrency smoke, production smoke, dependency audit, and E2E gates. Local SMTP-capture and PostgreSQL concurrency checks also pass. Real provider SMTP acceptance, Docker production-image boot, deployment-topology validation, branch protection, and Git-history secret-scan evidence remain deployment or repository-administration gates before public release.
 
 ## Closed Or Addressed Findings
 
