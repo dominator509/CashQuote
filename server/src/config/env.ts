@@ -1,6 +1,7 @@
 import { AppError } from '../middlewares/error';
 
 const DEV_JWT_SECRET = 'development-only-jwt-secret';
+const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
 const WEAK_PRODUCTION_JWT_SECRETS = new Set([
   DEV_JWT_SECRET,
   'replace-with-a-long-random-secret',
@@ -133,7 +134,11 @@ export const getJwtSecret = (): string => {
   if (isConfigured(process.env.JWT_SECRET)) {
     const configuredSecret = process.env.JWT_SECRET!;
     const normalizedSecret = configuredSecret.trim().toLowerCase();
-    if (isProduction() && WEAK_PRODUCTION_JWT_SECRETS.has(normalizedSecret)) {
+    if (
+      isProduction() &&
+      (WEAK_PRODUCTION_JWT_SECRETS.has(normalizedSecret) ||
+        normalizedSecret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH)
+    ) {
       throw new AppError(
         normalizedSecret === DEV_JWT_SECRET
           ? 'JWT_SECRET must not use the development default in production'

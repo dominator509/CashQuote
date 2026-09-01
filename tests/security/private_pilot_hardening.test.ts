@@ -23,7 +23,7 @@ describe('private pilot production hardening', () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: 'test',
-      JWT_SECRET: 'test-secret',
+      JWT_SECRET: 'ci-private-jwt-secret-for-tests-2026',
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/cashquote',
       APP_ORIGIN: 'http://localhost:5173',
       CORS_ORIGIN: 'http://localhost:5173',

@@ -15,6 +15,7 @@
   configuration, unavailable mock email, weak pilot access codes, and failed
   migrations.
 - Rejected the documented JWT configuration placeholder in production.
+- Required production JWT secrets to be at least 32 characters.
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.

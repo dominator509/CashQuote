@@ -75,7 +75,7 @@ npm run build
 npm run start:prod
 ```
 
-`NODE_ENV=production` requires `JWT_SECRET`; startup-auth paths fail closed without it.
+`NODE_ENV=production` requires a private `JWT_SECRET` of at least 32 characters; startup-auth paths fail closed without it or when a documented/default value is used.
 
 Production also requires `DATABASE_URL`, `APP_ORIGIN`, SMTP configuration, and a private, non-default `PILOT_ACCESS_CODE` of at least 16 characters. `ALLOW_MOCK_EMAIL` is not accepted in production; set `TRUST_PROXY=true` only when the deployment has exactly one trusted proxy hop. See `PRODUCTION_READINESS.md` for the full launch gate, Docker path, rollback notes, and smoke flow.
 
