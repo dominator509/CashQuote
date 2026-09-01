@@ -24,6 +24,7 @@
 - Serialized pilot owner-membership provisioning so concurrent first logins cannot create conflicting onboarding state.
 - Prevented rounded stored tax amounts from being used as an inferred rate during quote and invoice financial updates.
 - Restricted the CI workflow token to read-only repository contents.
+- Added real PostgreSQL concurrency coverage for first-time pilot owner provisioning.
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.

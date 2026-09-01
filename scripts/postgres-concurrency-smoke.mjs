@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 const { prisma } = require('db');
 const { createInvoicePayment } = require('../server/dist/services/billing/payment.service.js');
 const { convertQuoteToInvoice } = require('../server/dist/services/billing/conversion.service.js');
+const { ensureOwnerMembership } = require('../server/dist/controllers/auth.controller.js');
 const { deleteInvoice, updateInvoice } = require('../server/dist/controllers/invoice.controller.js');
 const {
   createReminder,
@@ -66,12 +67,38 @@ const createQuote = async (businessId, clientId, suffix, status = 'accepted') =>
 const run = async () => {
   const suffix = randomUUID();
   let businessId;
+  let authBusinessId;
+  const authEmail = `concurrency-${suffix}@example.com`;
 
   try {
     const business = await prisma.business.create({
       data: { name: `Concurrency smoke ${suffix}` },
     });
     businessId = business.id;
+
+    const authProvisioningAttempts = await Promise.allSettled([
+      ensureOwnerMembership(authEmail, `Auth concurrency smoke ${suffix}`),
+      ensureOwnerMembership(authEmail, `Auth concurrency smoke ${suffix}`),
+    ]);
+    const fulfilledAuthProvisioning = authProvisioningAttempts.filter(
+      (attempt) => attempt.status === 'fulfilled'
+    );
+    authBusinessId = fulfilledAuthProvisioning[0]?.value.business.id;
+    const provisionedUser = await prisma.user.findUnique({
+      where: { email: authEmail },
+      include: { memberships: true },
+    });
+    const provisionedBusinesses = new Set(
+      fulfilledAuthProvisioning.map((attempt) => attempt.value.business.id)
+    );
+    assert(
+      fulfilledAuthProvisioning.length === 2 &&
+        provisionedBusinesses.size === 1 &&
+        provisionedUser?.memberships.length === 1 &&
+        provisionedUser.memberships[0].businessId === authBusinessId &&
+        provisionedUser.memberships[0].role === 'owner',
+      `Owner provisioning invariant failed: fulfilled=${fulfilledAuthProvisioning.length}, businesses=${provisionedBusinesses.size}, memberships=${provisionedUser?.memberships.length ?? 0}`
+    );
 
     const client = await prisma.client.create({
       data: {
@@ -277,11 +304,15 @@ const run = async () => {
       `Reminder send invariant failed: fulfilled=${sendAttempts.filter((attempt) => attempt.status === 'fulfilled').length}, status=${sentReminder?.status}, logs=${sendLogs}`
     );
 
-console.log('PostgreSQL concurrency smoke passed: payments, invoice update/payment, invoice delete/payment, conversion, reminder create, reminder send');
+    console.log('PostgreSQL concurrency smoke passed: owner provisioning, payments, invoice update/payment, invoice delete/payment, conversion, reminder create, reminder send');
   } finally {
     if (businessId) {
       await prisma.business.delete({ where: { id: businessId } });
     }
+    if (authBusinessId) {
+      await prisma.business.delete({ where: { id: authBusinessId } });
+    }
+    await prisma.user.deleteMany({ where: { email: authEmail } });
     await prisma.$disconnect();
   }
 };

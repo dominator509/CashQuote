@@ -29,7 +29,7 @@ const createSession = (res: Response, userId: string): void => {
   res.cookie('token', token, getCookieOptions());
 };
 
-const ensureOwnerMembership = async (email: string, businessName: string) => {
+export const ensureOwnerMembership = async (email: string, businessName: string) => {
   return runSerializableTransaction(async (tx) => {
     const user = await tx.user.upsert({
       where: { email },
