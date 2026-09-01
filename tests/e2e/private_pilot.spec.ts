@@ -10,6 +10,14 @@ test('surfaces pilot login failures in the status banner', async ({ page }) => {
   await expect(page.getByText('Quote Builder')).not.toBeVisible();
 });
 
+test('surfaces session-restore failures in the status banner', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.abort('failed'));
+
+  await page.goto('/');
+
+  await expect(page.getByText('Failed to fetch')).toBeVisible();
+});
+
 test('private pilot workflow reaches invoice print/export', async ({ page }) => {
   const unique = Date.now();
   const pilotEmail =

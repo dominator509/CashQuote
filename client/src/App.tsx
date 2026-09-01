@@ -178,7 +178,15 @@ export function App() {
         setMessage(`Session restored for ${result.business.name}.`);
         return refresh(result.business);
       })
-      .catch(() => undefined);
+      .catch((error) => {
+        // A missing/expired session is the normal signed-out path. Surface
+        // other failures so a broken API or network is not mistaken for an
+        // ordinary login screen or a successfully restored workspace.
+        const errorMessage = getErrorMessage(error);
+        if (!errorMessage.startsWith('Unauthorized:')) {
+          setMessage(errorMessage);
+        }
+      });
   }, []);
 
   const login = async () => {
