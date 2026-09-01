@@ -1,5 +1,17 @@
 import net from 'node:net';
+import { prisma } from 'db';
 import { SmtpMailService } from '../../server/src/services/mail/smtp-mail.service';
+import { sendReminder } from '../../server/src/services/reminders/reminder.service';
+
+jest.mock('db', () => ({
+  prisma: {
+    reminder: { findFirst: jest.fn(), update: jest.fn() },
+    quote: { findFirst: jest.fn() },
+    invoice: { findFirst: jest.fn() },
+    activityLog: { create: jest.fn() },
+    $transaction: jest.fn(async (callback) => callback(prisma)),
+  },
+}));
 
 type CapturedMail = {
   from?: string;
@@ -82,12 +94,31 @@ describe('SMTP reminder delivery integration', () => {
   let capture: CaptureServer | undefined;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     process.env = {
       ...originalEnv,
+      NODE_ENV: 'production',
       SMTP_FROM: 'billing@example.com',
     };
     capture = await startSmtpCapture();
     process.env.SMTP_URL = `smtp://127.0.0.1:${capture.port}`;
+
+    (prisma.reminder.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rem-1',
+      status: 'pending',
+      entityId: 'quote-1',
+      entityType: 'quote',
+      scheduledAt: new Date().toISOString(),
+    });
+    (prisma.quote.findFirst as jest.Mock).mockResolvedValue({
+      id: 'quote-1',
+      client: { email: 'client@example.com' },
+    });
+    (prisma.reminder.update as jest.Mock).mockImplementation(async ({ data }) => ({
+      id: 'rem-1',
+      status: data.status,
+    }));
+    (prisma.activityLog.create as jest.Mock).mockResolvedValue({ id: 'log-1' });
   });
 
   afterEach(async () => {
@@ -111,6 +142,33 @@ describe('SMTP reminder delivery integration', () => {
     expect(capture?.mail).toEqual({
       from: '<billing@example.com>',
       to: '<client@example.com>',
+    });
+  });
+
+  it('resolves the client recipient and persists sent after SMTP acceptance', async () => {
+    const sent = await sendReminder('biz-1', 'user-1', 'rem-1');
+
+    expect(sent).toEqual({ id: 'rem-1', status: 'sent' });
+    expect(capture?.mail).toEqual({
+      from: '<billing@example.com>',
+      to: '<client@example.com>',
+    });
+    expect(prisma.reminder.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'rem-1', businessId: 'biz-1', status: 'pending' },
+      data: { status: 'sending' },
+    });
+    expect(prisma.reminder.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'rem-1', businessId: 'biz-1', status: 'sending' },
+      data: { status: 'sent' },
+    });
+    expect(prisma.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        businessId: 'biz-1',
+        userId: 'user-1',
+        action: 'reminder_send',
+        entityId: 'rem-1',
+        entityType: 'reminder',
+      }),
     });
   });
 });

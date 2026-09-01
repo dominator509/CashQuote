@@ -28,3 +28,5 @@
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.
+- Added SMTP-capture coverage for the complete reminder path from entity
+  lookup through client-recipient delivery and the final sent-state update.
