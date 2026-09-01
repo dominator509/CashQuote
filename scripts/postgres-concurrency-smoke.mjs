@@ -149,6 +149,7 @@ const run = async () => {
       business: { id: businessId },
       params: { id: invoiceUpdateRace.id },
       body: {
+        taxRatePercent: 0,
         lineItems: [
           {
             description: 'Updated concurrent invoice',
