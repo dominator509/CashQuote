@@ -22,6 +22,7 @@
 - Refreshed current production-validation evidence to point to the latest exact green CI SHA and four-test E2E gate.
 - Bounded live OpenAI generation requests to 30 seconds before using the existing fallback path.
 - Serialized pilot owner-membership provisioning so concurrent first logins cannot create conflicting onboarding state.
+- Prevented rounded stored tax amounts from being used as an inferred rate during quote and invoice financial updates.
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.

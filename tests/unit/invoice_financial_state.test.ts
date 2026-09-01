@@ -60,6 +60,7 @@ describe('invoice financial state hardening', () => {
       user: { id: 'user-1' },
       params: { id: '11111111-1111-4111-8111-111111111111' },
       body: {
+        taxRatePercent: 0,
         lineItems: [
           {
             description: 'Reduced work',
@@ -143,6 +144,7 @@ describe('invoice financial state hardening', () => {
       params: { id: '11111111-1111-4111-8111-111111111111' },
       body: {
         status: 'paid',
+        taxRatePercent: 0,
         lineItems: [
           {
             description: 'Expanded work',

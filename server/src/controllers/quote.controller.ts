@@ -114,17 +114,47 @@ export const updateQuote = async (req: Request, res: Response) => {
       );
     }
 
+    const hasLineItemUpdate = data.lineItems !== undefined;
+    const hasDiscountUpdate = data.discountAmount !== undefined;
+
+    // Status-only updates must preserve the persisted financial totals. The
+    // stored tax amount is rounded, so it cannot be used to recover the exact
+    // tax rate for a later line-item or discount change.
+    if (!hasLineItemUpdate && !hasDiscountUpdate && data.taxRatePercent === undefined) {
+      return tx.quote.update({
+        where: { id },
+        data: { status: data.status },
+        include: { lineItems: true, client: true },
+      });
+    }
+
+    const requestedLineItems = data.lineItems ?? existingQuote.lineItems;
+    const subtotal = calculateLineItemsSubtotal(requestedLineItems);
+    const discountAmount = data.discountAmount ?? existingQuote.discount;
+    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
+      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+    }
+
+    if ((hasLineItemUpdate || hasDiscountUpdate) && data.taxRatePercent === undefined) {
+      throw new AppError(
+        'Tax rate is required when updating quote financial details',
+        400,
+        'TAX_RATE_REQUIRED'
+      );
+    }
+
     // 1. Process Line Items if provided
     let currentLineItems = existingQuote.lineItems;
-    if (data.lineItems) {
+    const updatedLineItems = data.lineItems;
+    if (updatedLineItems !== undefined) {
       // Delete old ones
       await tx.quoteLineItem.deleteMany({
         where: { quoteId: id, businessId },
       });
       // Insert new ones
-      if (data.lineItems.length > 0) {
+      if (updatedLineItems.length > 0) {
         await tx.quoteLineItem.createMany({
-          data: data.lineItems.map((item) => ({
+          data: updatedLineItems.map((item) => ({
             quoteId: id,
             businessId,
             description: item.description,
@@ -140,23 +170,13 @@ export const updateQuote = async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Recalculate Totals
-    const subtotal = calculateLineItemsSubtotal(currentLineItems);
-    const discountAmount = data.discountAmount ?? existingQuote.discount;
-    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
-      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
-    }
-
-    // Derive effective tax rate if not provided:
-    // oldTax = round((oldSubtotal - oldDiscount) * oldRate / 100)
-    // oldRate ≈ (oldTax * 100) / (oldSubtotal - oldDiscount)
-    let taxRatePercent = data.taxRatePercent;
-    if (taxRatePercent === undefined) {
-      const oldTaxable = existingQuote.subtotal - existingQuote.discount;
-      taxRatePercent = oldTaxable > 0 ? (existingQuote.tax * 100) / oldTaxable : 0;
-    }
-
-    const totals = calculateTotals(subtotal, taxRatePercent, discountAmount);
+    // 2. Recalculate Totals using the caller's explicit rate.
+    const taxRatePercent = data.taxRatePercent ?? 0;
+    const totals = calculateTotals(
+      calculateLineItemsSubtotal(currentLineItems),
+      taxRatePercent,
+      discountAmount
+    );
 
     // 3. Update Quote
     const updatedQuote = await tx.quote.update({

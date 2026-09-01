@@ -122,17 +122,51 @@ export const updateInvoice = async (req: Request, res: Response) => {
       throw new AppError('Void invoices cannot be updated', 409, 'INVOICE_IS_VOID');
     }
 
+    const hasLineItemUpdate = data.lineItems !== undefined;
+    const hasDiscountUpdate = data.discountAmount !== undefined;
+    const paidTotal = existingInvoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+    // Updates that do not change financial details must preserve the
+    // persisted totals. The stored tax amount is rounded and cannot recover
+    // the exact tax rate for a later line-item or discount change.
+    if (!hasLineItemUpdate && !hasDiscountUpdate && data.taxRatePercent === undefined) {
+      return tx.invoice.update({
+        where: { id },
+        data: {
+          status: deriveInvoiceStatus(data.status, paidTotal, existingInvoice.total),
+          dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
+        },
+        include: { lineItems: true, client: true },
+      });
+    }
+
+    const requestedLineItems = data.lineItems ?? existingInvoice.lineItems;
+    const subtotal = calculateLineItemsSubtotal(requestedLineItems);
+    const discountAmount = data.discountAmount ?? existingInvoice.discount;
+    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
+      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
+    }
+
+    if ((hasLineItemUpdate || hasDiscountUpdate) && data.taxRatePercent === undefined) {
+      throw new AppError(
+        'Tax rate is required when updating invoice financial details',
+        400,
+        'TAX_RATE_REQUIRED'
+      );
+    }
+
     // 1. Process Line Items if provided
     let currentLineItems = existingInvoice.lineItems;
-    if (data.lineItems) {
+    const updatedLineItems = data.lineItems;
+    if (updatedLineItems !== undefined) {
       // Delete old ones
       await tx.invoiceLineItem.deleteMany({
         where: { invoiceId: id, businessId },
       });
       // Insert new ones
-      if (data.lineItems.length > 0) {
+      if (updatedLineItems.length > 0) {
         await tx.invoiceLineItem.createMany({
-          data: data.lineItems.map((item) => ({
+          data: updatedLineItems.map((item) => ({
             invoiceId: id,
             businessId,
             description: item.description,
@@ -148,21 +182,13 @@ export const updateInvoice = async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Recalculate Totals
-    const subtotal = calculateLineItemsSubtotal(currentLineItems);
-    const discountAmount = data.discountAmount ?? existingInvoice.discount;
-    if (!isDiscountWithinSubtotal(subtotal, discountAmount)) {
-      throw new AppError('Discount cannot exceed subtotal', 400, 'DISCOUNT_EXCEEDS_SUBTOTAL');
-    }
-
-    let taxRatePercent = data.taxRatePercent;
-    if (taxRatePercent === undefined) {
-      const oldTaxable = existingInvoice.subtotal - existingInvoice.discount;
-      taxRatePercent = oldTaxable > 0 ? (existingInvoice.tax * 100) / oldTaxable : 0;
-    }
-
-    const totals = calculateTotals(subtotal, taxRatePercent, discountAmount);
-    const paidTotal = existingInvoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    // 2. Recalculate Totals using the caller's explicit rate.
+    const taxRatePercent = data.taxRatePercent ?? 0;
+    const totals = calculateTotals(
+      calculateLineItemsSubtotal(currentLineItems),
+      taxRatePercent,
+      discountAmount
+    );
     if (paidTotal > totals.total) {
       throw new AppError('Invoice total cannot be less than recorded payments', 400);
     }
