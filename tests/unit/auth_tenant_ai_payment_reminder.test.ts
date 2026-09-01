@@ -105,6 +105,19 @@ describe('Production MVP security and workflow seams', () => {
     }
   });
 
+  it('rejects the documented JWT placeholder in production', () => {
+    process.env.JWT_SECRET = 'replace-with-a-long-random-secret';
+    process.env.NODE_ENV = 'production';
+
+    expect(() => getJwtSecret()).toThrow(
+      expect.objectContaining({
+        statusCode: 500,
+        code: 'CONFIG_WEAK_SECRET',
+        message: 'JWT_SECRET must be a private, non-default value in production',
+      })
+    );
+  });
+
   it('rejects weak pilot access codes in production', () => {
     process.env.PILOT_ACCESS_CODE = 'pilot-code';
     process.env.NODE_ENV = 'production';

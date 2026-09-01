@@ -14,6 +14,7 @@
 - Made production startup and readiness fail closed for missing or invalid
   configuration, unavailable mock email, weak pilot access codes, and failed
   migrations.
+- Rejected the documented JWT configuration placeholder in production.
 - Added Docker production-image build and boot/readiness checks to CI, plus
   bounded dependency-audit behavior.
 - Ignored local environment files and generated validation artifacts.

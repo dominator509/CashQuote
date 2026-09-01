@@ -1,6 +1,10 @@
 import { AppError } from '../middlewares/error';
 
 const DEV_JWT_SECRET = 'development-only-jwt-secret';
+const WEAK_PRODUCTION_JWT_SECRETS = new Set([
+  DEV_JWT_SECRET,
+  'replace-with-a-long-random-secret',
+]);
 const MIN_PRODUCTION_PILOT_ACCESS_CODE_LENGTH = 16;
 const WEAK_PILOT_ACCESS_CODES = new Set([
   'pilot-code',
@@ -127,15 +131,19 @@ export const getPilotEmailAllowlist = (): string[] =>
 
 export const getJwtSecret = (): string => {
   if (isConfigured(process.env.JWT_SECRET)) {
-    if (isProduction() && process.env.JWT_SECRET === DEV_JWT_SECRET) {
+    const configuredSecret = process.env.JWT_SECRET!;
+    const normalizedSecret = configuredSecret.trim().toLowerCase();
+    if (isProduction() && WEAK_PRODUCTION_JWT_SECRETS.has(normalizedSecret)) {
       throw new AppError(
-        'JWT_SECRET must not use the development default in production',
+        normalizedSecret === DEV_JWT_SECRET
+          ? 'JWT_SECRET must not use the development default in production'
+          : 'JWT_SECRET must be a private, non-default value in production',
         500,
         'CONFIG_WEAK_SECRET'
       );
     }
 
-    return process.env.JWT_SECRET!;
+    return configuredSecret;
   }
 
   if (isProduction()) {
