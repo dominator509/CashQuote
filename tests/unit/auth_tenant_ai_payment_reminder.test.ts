@@ -79,6 +79,16 @@ describe('Production MVP security and workflow seams', () => {
     );
   });
 
+  it('rejects a whitespace-only pilot access code in production', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_MOCK_EMAIL;
+    process.env.PILOT_ACCESS_CODE = '                ';
+
+    expect(() => getProductionReadinessConfig()).toThrow(
+      expect.objectContaining({ code: 'CONFIG_MISSING' })
+    );
+  });
+
   it('rejects the development JWT secret in production', () => {
     process.env.JWT_SECRET = 'development-only-jwt-secret';
     process.env.NODE_ENV = 'production';

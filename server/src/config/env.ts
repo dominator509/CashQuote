@@ -146,7 +146,7 @@ export const getJwtSecret = (): string => {
 };
 
 export const getPilotAccessCode = (): string => {
-  const accessCode = process.env.PILOT_ACCESS_CODE;
+  const accessCode = process.env.PILOT_ACCESS_CODE?.trim();
   if (!accessCode) {
     throw new AppError('Pilot access code is not configured', 500, 'CONFIG_MISSING');
   }
