@@ -361,6 +361,16 @@ describe('private pilot production hardening', () => {
     expect(response.body.code).toBe('CONFIG_INVALID_SMTP');
   });
 
+  it('fails readiness when production SMTP sender is invalid', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_FROM = 'not-an-email';
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('CONFIG_INVALID_SMTP');
+  });
+
   it('fails readiness when production mock email is enabled', async () => {
     process.env.NODE_ENV = 'production';
     process.env.ALLOW_MOCK_EMAIL = 'true';

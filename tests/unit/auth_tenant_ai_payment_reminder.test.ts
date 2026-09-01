@@ -210,6 +210,18 @@ describe('Production MVP security and workflow seams', () => {
     );
   });
 
+  it('rejects an invalid SMTP sender address', () => {
+    process.env.SMTP_URL = 'smtp://mail.example.com';
+    process.env.SMTP_FROM = 'not-an-email';
+
+    expect(() => getSmtpConfig()).toThrow(
+      expect.objectContaining({
+        code: 'CONFIG_INVALID_SMTP',
+        message: 'SMTP_FROM must be a valid email address',
+      })
+    );
+  });
+
   it('accepts tenant context only when user is a business member', async () => {
     (prisma.businessMember.findUnique as jest.Mock).mockResolvedValue({
       role: 'owner',

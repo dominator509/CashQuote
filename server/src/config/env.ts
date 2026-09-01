@@ -1,4 +1,5 @@
 import { AppError } from '../middlewares/error';
+import { z } from 'zod';
 
 const DEV_JWT_SECRET = 'development-only-jwt-secret';
 const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
@@ -14,6 +15,7 @@ const WEAK_PILOT_ACCESS_CODES = new Set([
   'password',
   'replace-with-private-pilot-code',
 ]);
+const smtpFromSchema = z.string().email();
 
 export interface ProductionReadinessConfig {
   appOrigin: string;
@@ -104,6 +106,10 @@ export const getSmtpConfig = (): SmtpConfig => {
 
   if (!['smtp:', 'smtps:'].includes(parsed.protocol) || !parsed.hostname) {
     throw new AppError('SMTP_URL must be a valid smtp:// or smtps:// URL', 500, 'CONFIG_INVALID_SMTP');
+  }
+
+  if (!smtpFromSchema.safeParse(smtpFrom).success) {
+    throw new AppError('SMTP_FROM must be a valid email address', 500, 'CONFIG_INVALID_SMTP');
   }
 
   return { smtpUrl, smtpFrom };

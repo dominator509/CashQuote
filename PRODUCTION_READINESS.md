@@ -22,7 +22,7 @@ This launch target is not full public SaaS v1. Payments remain internal records 
 - `LOG_LEVEL` (optional; defaults to the logger's configured level)
 - `TRUST_PROXY=true` only when the service is behind exactly one trusted proxy/load balancer hop
 
-`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `JWT_SECRET` must be a private value of at least 32 characters and must not use a documented placeholder or development default. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` is permitted only for an explicitly controlled private pilot; `ALLOW_MOCK_EMAIL=true` is rejected in production. Leave `TRUST_PROXY` unset or `false` unless the deployment topology has exactly one trusted proxy hop. Production startup and `/readyz` require usable SMTP configuration.
+`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `JWT_SECRET` must be a private value of at least 32 characters and must not use a documented placeholder or development default. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` is permitted only for an explicitly controlled private pilot; `ALLOW_MOCK_EMAIL=true` is rejected in production. Leave `TRUST_PROXY` unset or `false` unless the deployment topology has exactly one trusted proxy hop. Production startup and `/readyz` require a valid SMTP URL and sender email configuration.
 
 ## Validation Gate
 
