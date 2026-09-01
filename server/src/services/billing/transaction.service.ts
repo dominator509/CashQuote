@@ -19,7 +19,8 @@ export const isPrismaErrorCode = (error: unknown, code: string): boolean =>
   getPrismaErrorCode(error) === code;
 
 /**
- * Runs state-changing financial/reminder operations at SERIALIZABLE isolation.
+ * Runs state-changing financial, reminder, and onboarding operations at
+ * SERIALIZABLE isolation.
  * PostgreSQL may abort one of two concurrent transactions with P2034; retrying
  * lets the winning request complete while the retry observes committed state.
  */

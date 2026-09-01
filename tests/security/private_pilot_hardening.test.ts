@@ -6,10 +6,11 @@ import { prisma } from 'db';
 
 jest.mock('db', () => ({
   prisma: {
-    user: { findFirst: jest.fn(), create: jest.fn() },
+    user: { findFirst: jest.fn(), upsert: jest.fn() },
     business: { findFirst: jest.fn(), create: jest.fn() },
-    businessMember: { findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn() },
+    businessMember: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
     activityLog: { create: jest.fn(), findMany: jest.fn() },
+    $transaction: jest.fn(async (callback) => callback(prisma)),
     $queryRaw: jest.fn(),
     $disconnect: jest.fn(),
   },
@@ -51,15 +52,14 @@ describe('private pilot production hardening', () => {
   });
 
   it('allows pilot login for an allowlisted email and provisions owner membership', async () => {
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.user.create as jest.Mock).mockResolvedValue({
+    (prisma.user.upsert as jest.Mock).mockResolvedValue({
       id: 'user-1',
       email: 'pilot@example.com',
       role: 'owner',
     });
     (prisma.businessMember.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.business.create as jest.Mock).mockResolvedValue({ id: 'biz-1', name: 'pilot Pilot Business' });
-    (prisma.businessMember.upsert as jest.Mock).mockResolvedValue({ id: 'member-1' });
+    (prisma.businessMember.create as jest.Mock).mockResolvedValue({ id: 'member-1' });
 
     const response = await request(app)
       .post('/api/auth/pilot-login')
@@ -70,24 +70,31 @@ describe('private pilot production hardening', () => {
     expect(response.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining('token=')])
     );
-    expect(prisma.businessMember.upsert).toHaveBeenCalledWith(
+    expect(prisma.businessMember.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ role: 'owner' }),
+        data: expect.objectContaining({ role: 'owner' }),
       })
     );
-    expect(prisma.business.findFirst).not.toHaveBeenCalled();
+    expect(prisma.user.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: 'pilot@example.com' },
+      })
+    );
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { isolationLevel: 'Serializable' }
+    );
   });
 
   it('does not attach new pilot users to an existing business with the same generated name', async () => {
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.user.create as jest.Mock).mockResolvedValue({
+    (prisma.user.upsert as jest.Mock).mockResolvedValue({
       id: 'user-2',
       email: 'pilot@other-domain.test',
       role: 'owner',
     });
     (prisma.businessMember.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.business.create as jest.Mock).mockResolvedValue({ id: 'biz-2', name: 'pilot Pilot Business' });
-    (prisma.businessMember.upsert as jest.Mock).mockResolvedValue({ id: 'member-2' });
+    (prisma.businessMember.create as jest.Mock).mockResolvedValue({ id: 'member-2' });
     process.env.PILOT_EMAIL_ALLOWLIST = 'pilot@other-domain.test';
 
     const response = await request(app)
@@ -99,7 +106,6 @@ describe('private pilot production hardening', () => {
     expect(prisma.business.create).toHaveBeenCalledWith({
       data: { name: 'pilot Pilot Business' },
     });
-    expect(prisma.business.findFirst).not.toHaveBeenCalled();
   });
 
   it('rejects pilot login for non-allowlisted email', async () => {

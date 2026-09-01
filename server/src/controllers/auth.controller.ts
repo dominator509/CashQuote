@@ -10,6 +10,7 @@ import {
 } from '../config/env';
 import { AppError } from '../middlewares/error';
 import { logActivity } from '../services/activity/activity.service';
+import { runSerializableTransaction } from '../services/billing/transaction.service';
 
 const pilotLoginSchema = z.object({
   email: z.string().email(),
@@ -29,47 +30,41 @@ const createSession = (res: Response, userId: string): void => {
 };
 
 const ensureOwnerMembership = async (email: string, businessName: string) => {
-  let user = await prisma.user.findFirst({ where: { email } });
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
+  return runSerializableTransaction(async (tx) => {
+    const user = await tx.user.upsert({
+      where: { email },
+      update: {},
+      create: {
         email,
         role: 'owner',
       },
     });
-  }
 
-  const existingMembership = await prisma.businessMember.findFirst({
-    where: { userId: user.id, role: 'owner' },
-    include: { business: true },
-  });
+    const existingMembership = await tx.businessMember.findFirst({
+      where: { userId: user.id, role: 'owner' },
+      include: { business: true },
+    });
 
-  if (existingMembership) {
-    return { user, business: existingMembership.business };
-  }
+    if (existingMembership) {
+      return { user, business: existingMembership.business };
+    }
 
-  const business = await prisma.business.create({
-    data: {
-      name: businessName,
-    },
-  });
+    const business = await tx.business.create({
+      data: {
+        name: businessName,
+      },
+    });
 
-  await prisma.businessMember.upsert({
-    where: {
-      userId_businessId: {
+    await tx.businessMember.create({
+      data: {
         userId: user.id,
         businessId: business.id,
+        role: 'owner',
       },
-    },
-    update: { role: 'owner' },
-    create: {
-      userId: user.id,
-      businessId: business.id,
-      role: 'owner',
-    },
-  });
+    });
 
-  return { user, business };
+    return { user, business };
+  });
 };
 
 export const demoLogin = async (_req: Request, res: Response) => {
