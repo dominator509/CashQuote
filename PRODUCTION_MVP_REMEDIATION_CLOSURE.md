@@ -6,7 +6,7 @@ This note maps the audit findings in `PRODUCTION_FUNCTIONALITY_AUDIT_BRIEFING.md
 
 ## August 31 Audit Follow-Up
 
-The subsequent pre-ship audit findings AUD-001 through AUD-003 and AUD-005 through AUD-010 were addressed in the repository. AUD-004 is now closed for repository CI evidence: the code-remediation candidate `344b3ae0a8acdb9c5481b23b23369aa3d252d71f` passed GitHub Actions run 33459695531, including the Docker image build and boot/readiness check, concurrency smoke, production smoke, dependency audit, and four-test E2E gate; the subsequent evidence-only update also passed the full gate in run 33460143693. Local SMTP-capture and PostgreSQL concurrency checks also pass. Real provider SMTP acceptance, deployment-topology validation, branch protection, and Git-history secret-scan evidence remain deployment or repository-administration gates before public release.
+The subsequent pre-ship audit findings AUD-001 through AUD-003 and AUD-005 through AUD-010 were addressed in the repository. AUD-004 is closed for repository CI evidence on the current ship SHA `6abff7933dc7b5d3e3362d71dcd50b2d3dccdbe7`: GitHub Actions run 33464420203 passed the Docker image build and boot/readiness check, concurrency smoke, production smoke, dependency audit, the full Jest gate, and the four-test E2E gate. Local SMTP-capture and PostgreSQL concurrency checks also pass, including the complete reminder path from client lookup through sent-state persistence. Real provider SMTP acceptance, deployment-topology validation, branch protection, and Git-history secret-scan evidence remain deployment or repository-administration gates before public release.
 
 ## Closed Or Addressed Findings
 
