@@ -7,6 +7,7 @@ import { logger } from '../logger/logger.service';
 const schema = z.object({
   items: aiGeneratedLineItemsSchema,
 });
+const OPENAI_REQUEST_TIMEOUT_MS = 30_000;
 
 export class OpenAiAdapter implements IAIService {
   async generateLineItems(notes: string): Promise<AIGeneratedLineItem[]> {
@@ -15,7 +16,11 @@ export class OpenAiAdapter implements IAIService {
     }
 
     try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: OPENAI_REQUEST_TIMEOUT_MS,
+        maxRetries: 0,
+      });
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
