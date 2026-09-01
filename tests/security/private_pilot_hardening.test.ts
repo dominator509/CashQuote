@@ -31,7 +31,7 @@ describe('private pilot production hardening', () => {
       PILOT_ACCESS_CODE: 'private-pilot-code-12345',
       PILOT_EMAIL_ACCESS_CODES: '{"pilot@example.com":"private-email-code-12345"}',
       PILOT_EMAIL_ALLOWLIST: 'pilot@example.com',
-      SMTP_URL: 'smtp://localhost:1025',
+      SMTP_URL: 'smtps://localhost:1025',
       SMTP_FROM: 'billing@example.com',
       ALLOW_MOCK_EMAIL: 'false',
     };

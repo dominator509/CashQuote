@@ -34,6 +34,13 @@ export interface SmtpConfig {
 const isTruthy = (value: string | undefined): boolean => value === 'true' || value === '1';
 const isConfigured = (value: string | undefined): boolean => Boolean(value?.trim());
 const pilotEmailSchema = z.string().email();
+const UNSAFE_SMTP_QUERY_OPTIONS = new Set([
+  'debug',
+  'ignoretls',
+  'logger',
+  'secure',
+  'tls.rejectunauthorized',
+]);
 
 export const isProduction = (): boolean => process.env.NODE_ENV === 'production';
 
@@ -106,6 +113,25 @@ export const getSmtpConfig = (): SmtpConfig => {
 
   if (!['smtp:', 'smtps:'].includes(parsed.protocol) || !parsed.hostname) {
     throw new AppError('SMTP_URL must be a valid smtp:// or smtps:// URL', 500, 'CONFIG_INVALID_SMTP');
+  }
+
+  if (isProduction() && parsed.protocol !== 'smtps:') {
+    throw new AppError(
+      'SMTP_URL must use smtps:// in production',
+      500,
+      'CONFIG_INVALID_SMTP'
+    );
+  }
+
+  const hasUnsafeQueryOption = Array.from(parsed.searchParams.keys()).some((key) =>
+    UNSAFE_SMTP_QUERY_OPTIONS.has(key.trim().toLowerCase())
+  );
+  if (isProduction() && hasUnsafeQueryOption) {
+    throw new AppError(
+      'SMTP_URL contains an unsafe transport option',
+      500,
+      'CONFIG_INVALID_SMTP'
+    );
   }
 
   if (!smtpFromSchema.safeParse(smtpFrom).success) {

@@ -97,7 +97,7 @@ describe('SMTP reminder delivery integration', () => {
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
-      NODE_ENV: 'production',
+      NODE_ENV: 'test',
       SMTP_FROM: 'billing@example.com',
     };
     capture = await startSmtpCapture();

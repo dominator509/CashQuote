@@ -35,3 +35,5 @@
 - Redacted session and authorization headers from request/response logs and
   added regression coverage for the logger configuration.
 - Added application-level throttling to the database-backed readiness probe.
+- Restricted production SMTP to direct TLS URLs and rejected unsafe transport
+  options that could weaken TLS or enable provider debug logging.

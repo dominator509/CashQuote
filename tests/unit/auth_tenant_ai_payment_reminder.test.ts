@@ -210,6 +210,32 @@ describe('Production MVP security and workflow seams', () => {
     );
   });
 
+  it('rejects plaintext SMTP transport in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_URL = 'smtp://mail.example.com';
+    process.env.SMTP_FROM = 'billing@example.com';
+
+    expect(() => getSmtpConfig()).toThrow(
+      expect.objectContaining({
+        code: 'CONFIG_INVALID_SMTP',
+        message: 'SMTP_URL must use smtps:// in production',
+      })
+    );
+  });
+
+  it('rejects unsafe SMTP URL options in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_URL = 'smtps://mail.example.com?logger=true';
+    process.env.SMTP_FROM = 'billing@example.com';
+
+    expect(() => getSmtpConfig()).toThrow(
+      expect.objectContaining({
+        code: 'CONFIG_INVALID_SMTP',
+        message: 'SMTP_URL contains an unsafe transport option',
+      })
+    );
+  });
+
   it('rejects an invalid SMTP sender address', () => {
     process.env.SMTP_URL = 'smtp://mail.example.com';
     process.env.SMTP_FROM = 'not-an-email';

@@ -26,7 +26,7 @@ describe('reminder delivery idempotency', () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: 'production',
-      SMTP_URL: 'smtp://localhost:1025',
+      SMTP_URL: 'smtps://localhost:1025',
       SMTP_FROM: 'billing@example.com',
     };
 
