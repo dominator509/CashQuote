@@ -79,10 +79,10 @@ describe('Production MVP security and workflow seams', () => {
     );
   });
 
-  it('rejects a whitespace-only pilot access code in production', () => {
+  it('rejects missing per-email pilot access codes in production', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.ALLOW_MOCK_EMAIL;
-    process.env.PILOT_ACCESS_CODE = '                ';
+    delete process.env.PILOT_EMAIL_ACCESS_CODES;
 
     expect(() => getProductionReadinessConfig()).toThrow(
       expect.objectContaining({ code: 'CONFIG_MISSING' })
@@ -498,7 +498,7 @@ describe('Production MVP security and workflow seams', () => {
     const sent = await sendReminder('biz-1', 'user-1', reminder.id);
 
     expect(sent.status).toBe('sent');
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('client@example.com'));
+    expect(console.log).not.toHaveBeenCalled();
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 

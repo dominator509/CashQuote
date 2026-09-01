@@ -31,6 +31,14 @@ export const authRateLimit = rateLimit({
   message: { error: 'Too many authentication attempts', code: 'RATE_LIMITED' },
 });
 
+export const readinessRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many readiness checks', code: 'RATE_LIMITED' },
+});
+
 export const aiRateLimit = rateLimit({
   windowMs: 60 * 1000,
   limit: 30,

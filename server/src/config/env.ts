@@ -22,7 +22,6 @@ export interface ProductionReadinessConfig {
   corsOrigins: string[];
   jwtSecret: string;
   databaseUrl: string;
-  pilotAccessCode: string;
   smtpUrl: string;
   smtpFrom: string;
 }
@@ -34,6 +33,7 @@ export interface SmtpConfig {
 
 const isTruthy = (value: string | undefined): boolean => value === 'true' || value === '1';
 const isConfigured = (value: string | undefined): boolean => Boolean(value?.trim());
+const pilotEmailSchema = z.string().email();
 
 export const isProduction = (): boolean => process.env.NODE_ENV === 'production';
 
@@ -136,6 +136,92 @@ export const getPilotEmailAllowlist = (): string[] =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
+export const getPilotEmailAccessCodes = (): Record<string, string> => {
+  const configured = process.env.PILOT_EMAIL_ACCESS_CODES?.trim();
+  if (!configured) {
+    if (isProduction()) {
+      throw new AppError(
+        'PILOT_EMAIL_ACCESS_CODES must be configured in production',
+        500,
+        'CONFIG_MISSING'
+      );
+    }
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(configured);
+  } catch {
+    throw new AppError(
+      'PILOT_EMAIL_ACCESS_CODES must be valid JSON',
+      500,
+      'CONFIG_INVALID_PILOT_ACCESS_CODES'
+    );
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new AppError(
+      'PILOT_EMAIL_ACCESS_CODES must be a JSON object of email-to-code entries',
+      500,
+      'CONFIG_INVALID_PILOT_ACCESS_CODES'
+    );
+  }
+
+  const accessCodes: Record<string, string> = {};
+  for (const [rawEmail, rawCode] of Object.entries(parsed)) {
+    const email = rawEmail.trim().toLowerCase();
+    if (!pilotEmailSchema.safeParse(email).success || typeof rawCode !== 'string' || !rawCode.trim()) {
+      throw new AppError(
+        'PILOT_EMAIL_ACCESS_CODES must contain valid email keys and non-empty codes',
+        500,
+        'CONFIG_INVALID_PILOT_ACCESS_CODES'
+      );
+    }
+
+    const code = rawCode.trim();
+    const normalizedCode = code.toLowerCase();
+    if (
+      isProduction() &&
+      (code.length < MIN_PRODUCTION_PILOT_ACCESS_CODE_LENGTH ||
+        WEAK_PILOT_ACCESS_CODES.has(normalizedCode))
+    ) {
+      throw new AppError(
+        'PILOT_EMAIL_ACCESS_CODES values must be private, non-default codes of at least 16 characters',
+        500,
+        'CONFIG_WEAK_ACCESS_CODE'
+      );
+    }
+
+    if (isProduction() && Object.values(accessCodes).includes(code)) {
+      throw new AppError(
+        'PILOT_EMAIL_ACCESS_CODES values must be unique in production',
+        500,
+        'CONFIG_DUPLICATE_ACCESS_CODE'
+      );
+    }
+
+    if (accessCodes[email] !== undefined) {
+      throw new AppError(
+        'PILOT_EMAIL_ACCESS_CODES must not contain duplicate email keys',
+        500,
+        'CONFIG_INVALID_PILOT_ACCESS_CODES'
+      );
+    }
+    accessCodes[email] = code;
+  }
+
+  if (Object.keys(accessCodes).length === 0) {
+    throw new AppError(
+      'PILOT_EMAIL_ACCESS_CODES must contain at least one email-to-code entry',
+      500,
+      'CONFIG_INVALID_PILOT_ACCESS_CODES'
+    );
+  }
+
+  return accessCodes;
+};
+
 export const getJwtSecret = (): string => {
   if (isConfigured(process.env.JWT_SECRET)) {
     const configuredSecret = process.env.JWT_SECRET!;
@@ -198,7 +284,6 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
     'DATABASE_URL',
     'JWT_SECRET',
     'APP_ORIGIN',
-    'PILOT_ACCESS_CODE',
   ].filter((key) => !isConfigured(process.env[key]));
 
   if (missing.length > 0) {
@@ -210,7 +295,7 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
   }
 
   const jwtSecret = getJwtSecret();
-  const pilotAccessCode = getPilotAccessCode();
+  getPilotEmailAccessCodes();
   ensureProductionWebOrigin(process.env.APP_ORIGIN!, 'APP_ORIGIN');
   getTrustProxy();
   const { smtpUrl, smtpFrom } = getSmtpConfig();
@@ -220,7 +305,6 @@ export const getProductionReadinessConfig = (): ProductionReadinessConfig => {
     corsOrigins: getCorsOrigins(),
     jwtSecret,
     databaseUrl: process.env.DATABASE_URL!,
-    pilotAccessCode,
     smtpUrl,
     smtpFrom,
   };

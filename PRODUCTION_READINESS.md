@@ -12,7 +12,7 @@ This launch target is not full public SaaS v1. Payments remain internal records 
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `APP_ORIGIN`
-- `PILOT_ACCESS_CODE`
+- `PILOT_EMAIL_ACCESS_CODES` (JSON object of per-email private pilot codes)
 - `SMTP_URL`
 - `SMTP_FROM`
 - `PORT` (optional; defaults to `3000`)
@@ -22,7 +22,7 @@ This launch target is not full public SaaS v1. Payments remain internal records 
 - `LOG_LEVEL` (optional; defaults to the logger's configured level)
 - `TRUST_PROXY=true` only when the service is behind exactly one trusted proxy/load balancer hop
 
-`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `JWT_SECRET` must be a private value of at least 32 characters and must not use a documented placeholder or development default. `PILOT_ACCESS_CODE` must be a private, non-default value of at least 16 characters. `ALLOW_DEMO_LOGIN=true` is permitted only for an explicitly controlled private pilot; `ALLOW_MOCK_EMAIL=true` is rejected in production. Leave `TRUST_PROXY` unset or `false` unless the deployment topology has exactly one trusted proxy hop. Production startup and `/readyz` require a valid SMTP URL and sender email configuration.
+`APP_ORIGIN` and every `CORS_ORIGIN` entry must be an exact HTTP(S) origin, not a wildcard, path, or malformed URL. `JWT_SECRET` must be a private value of at least 32 characters and must not use a documented placeholder or development default. `PILOT_EMAIL_ACCESS_CODES` must be valid JSON containing at least one email key and a private, non-default code of at least 16 characters for each pilot identity. The email supplied at login must match one of those configured identities; the local/test-only `PILOT_ACCESS_CODE` is not accepted in production. `ALLOW_DEMO_LOGIN=true` is permitted only for an explicitly controlled private pilot; `ALLOW_MOCK_EMAIL=true` is rejected in production. Leave `TRUST_PROXY` unset or `false` unless the deployment topology has exactly one trusted proxy hop. Production startup and `/readyz` require a valid SMTP URL and sender email configuration.
 
 ## Validation Gate
 
@@ -70,7 +70,7 @@ curl http://localhost:3000/readyz
 ## Smoke Flow
 
 1. Open the app.
-2. Pilot login with an allowlisted email and `PILOT_ACCESS_CODE`.
+2. Pilot login with an email configured in `PILOT_EMAIL_ACCESS_CODES` and that identity's private code.
 3. Create a client.
 4. Create an accepted quote.
 5. Convert the quote to an invoice.

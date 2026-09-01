@@ -30,3 +30,8 @@
 - Ignored local environment files and generated validation artifacts.
 - Added SMTP-capture coverage for the complete reminder path from entity
   lookup through client-recipient delivery and the final sent-state update.
+- Replaced production's shared pilot login code with unique per-email access
+  codes and added configuration/readiness validation for the identity map.
+- Redacted session and authorization headers from request/response logs and
+  added regression coverage for the logger configuration.
+- Added application-level throttling to the database-backed readiness probe.

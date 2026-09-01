@@ -8,7 +8,13 @@ import { healthz, readyz } from './controllers/health.controller';
 import { requireAuth } from './middlewares/auth';
 import { requireBusinessId } from './middlewares/tenant';
 import { errorHandler } from './middlewares/error';
-import { aiRateLimit, authRateLimit, corsMiddleware, securityHeaders } from './middlewares/security';
+import {
+  aiRateLimit,
+  authRateLimit,
+  corsMiddleware,
+  readinessRateLimit,
+  securityHeaders,
+} from './middlewares/security';
 import { requestLogger } from './middlewares/request-logger';
 import { assertProductionReady, getTrustProxy, isProduction } from './config/env';
 import { getStaticClientBuild } from './config/static-client';
@@ -37,7 +43,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 app.get('/healthz', healthz);
-app.get('/readyz', readyz);
+app.get('/readyz', readinessRateLimit, readyz);
 
 // Public Routes
 app.post('/api/auth/demo-login', authRateLimit, demoLogin);

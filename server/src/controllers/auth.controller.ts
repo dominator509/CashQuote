@@ -5,8 +5,10 @@ import { z } from 'zod';
 import {
   getJwtSecret,
   getPilotAccessCode,
+  getPilotEmailAccessCodes,
   getPilotEmailAllowlist,
   isDemoLoginAllowed,
+  isProduction,
 } from '../config/env';
 import { AppError } from '../middlewares/error';
 import { logActivity } from '../services/activity/activity.service';
@@ -93,13 +95,15 @@ export const demoLogin = async (_req: Request, res: Response) => {
 
 export const pilotLogin = async (req: Request, res: Response) => {
   const data = pilotLoginSchema.parse(req.body);
-  const configuredAccessCode = getPilotAccessCode();
+  const email = data.email.toLowerCase();
+  const configuredAccessCode = isProduction()
+    ? getPilotEmailAccessCodes()[email]
+    : getPilotAccessCode();
 
-  if (data.accessCode !== configuredAccessCode) {
+  if (!configuredAccessCode || data.accessCode !== configuredAccessCode) {
     throw new AppError('Invalid pilot access code', 401, 'INVALID_ACCESS_CODE');
   }
 
-  const email = data.email.toLowerCase();
   const allowlist = getPilotEmailAllowlist();
   if (allowlist.length > 0 && !allowlist.includes(email)) {
     throw new AppError('Email is not allowed for this pilot', 403, 'EMAIL_NOT_ALLOWED');

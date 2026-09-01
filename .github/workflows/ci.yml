@@ -32,6 +32,7 @@ jobs:
       APP_ORIGIN: http://localhost:5173
       CORS_ORIGIN: http://localhost:5173
       PILOT_ACCESS_CODE: ci-private-pilot-code-12345
+      PILOT_EMAIL_ACCESS_CODES: '{"pilot@example.com":"ci-private-email-code-12345"}'
       PILOT_EMAIL_ALLOWLIST: pilot@example.com
       ALLOW_MOCK_EMAIL: "true"
       NODE_ENV: test
@@ -70,6 +71,7 @@ jobs:
             --env APP_ORIGIN=http://127.0.0.1:3200 \
             --env CORS_ORIGIN=http://127.0.0.1:3200 \
             --env PILOT_ACCESS_CODE=ci-private-pilot-code-12345 \
+            --env 'PILOT_EMAIL_ACCESS_CODES={"pilot@example.com":"ci-private-email-code-12345"}' \
             --env SMTP_URL=smtp://127.0.0.1:2525 \
             --env SMTP_FROM=ci@example.com \
             --env ALLOW_MOCK_EMAIL=false \

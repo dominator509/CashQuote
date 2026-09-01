@@ -29,6 +29,7 @@ describe('private pilot production hardening', () => {
       APP_ORIGIN: 'http://localhost:5173',
       CORS_ORIGIN: 'http://localhost:5173',
       PILOT_ACCESS_CODE: 'private-pilot-code-12345',
+      PILOT_EMAIL_ACCESS_CODES: '{"pilot@example.com":"private-email-code-12345"}',
       PILOT_EMAIL_ALLOWLIST: 'pilot@example.com',
       SMTP_URL: 'smtp://localhost:1025',
       SMTP_FROM: 'billing@example.com',
@@ -84,6 +85,40 @@ describe('private pilot production hardening', () => {
       expect.any(Function),
       { isolationLevel: 'Serializable' }
     );
+  });
+
+  it('requires the configured per-email code for production pilot login', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const sharedCodeResponse = await request(app)
+      .post('/api/auth/pilot-login')
+      .send({ email: 'pilot@example.com', accessCode: 'private-pilot-code-12345' });
+
+    expect(sharedCodeResponse.status).toBe(401);
+    expect(sharedCodeResponse.body.code).toBe('INVALID_ACCESS_CODE');
+    expect(prisma.user.upsert).not.toHaveBeenCalled();
+  });
+
+  it('accepts the configured per-email code for production pilot login', async () => {
+    process.env.NODE_ENV = 'production';
+    (prisma.user.upsert as jest.Mock).mockResolvedValue({
+      id: 'user-production',
+      email: 'pilot@example.com',
+      role: 'owner',
+    });
+    (prisma.businessMember.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.business.create as jest.Mock).mockResolvedValue({
+      id: 'biz-production',
+      name: 'pilot Pilot Business',
+    });
+    (prisma.businessMember.create as jest.Mock).mockResolvedValue({ id: 'member-production' });
+
+    const response = await request(app)
+      .post('/api/auth/pilot-login')
+      .send({ email: 'pilot@example.com', accessCode: 'private-email-code-12345' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.business.id).toBe('biz-production');
   });
 
   it('does not attach new pilot users to an existing business with the same generated name', async () => {
@@ -282,7 +317,7 @@ describe('private pilot production hardening', () => {
 
   it('fails readiness when production uses a weak pilot access code', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.PILOT_ACCESS_CODE = 'pilot-code';
+    process.env.PILOT_EMAIL_ACCESS_CODES = '{"pilot@example.com":"pilot-code"}';
 
     const response = await request(app).get('/readyz');
 
@@ -292,7 +327,7 @@ describe('private pilot production hardening', () => {
 
   it('blocks production pilot login when the configured access code is weak', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.PILOT_ACCESS_CODE = 'pilot-code';
+    process.env.PILOT_EMAIL_ACCESS_CODES = '{"pilot@example.com":"pilot-code"}';
 
     const response = await request(app)
       .post('/api/auth/pilot-login')
@@ -394,6 +429,23 @@ describe('private pilot production hardening', () => {
       const response = await request(app)
         .post('/api/auth/pilot-login')
         .send({ email: 'pilot@example.com', accessCode: 'wrong-code' });
+      if (response.status === 429) {
+        sawRateLimit = true;
+        expect(response.body.code).toBe('RATE_LIMITED');
+        break;
+      }
+    }
+
+    expect(sawRateLimit).toBe(true);
+  });
+
+  it('rate limits repeated readiness checks', async () => {
+    process.env.NODE_ENV = 'production';
+    (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '?column?': 1 }]);
+    let sawRateLimit = false;
+
+    for (let index = 0; index < 80; index += 1) {
+      const response = await request(app).get('/readyz');
       if (response.status === 429) {
         sawRateLimit = true;
         expect(response.body.code).toBe('RATE_LIMITED');
